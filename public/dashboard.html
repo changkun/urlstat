@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>changkun.de's URLstat dashboard</title>
+<script async src="//changkun.de/urlstat/client.js"></script>
+<style>
+:root {
+--gray-1: #202224;
+--gray-2: #3e4042;
+--gray-6: #aaacae;
+--turq-med: #00add8;
+}
+body {
+  margin: 0;
+  font-family: Roboto, sans-serif;
+  background-color: var(--gray-1);
+  color: var(--gray-6);
+}
+table { text-align: left; }
+body { background-color: var(--gray-2); }
+a {
+  color: var(--turq-med);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--turq-med);
+  text-decoration: none;
+}
+#app { padding: 20px; }
+</style>
+</head>
+<body>
+<div id="app">
+<h1>changkun.de</h1>
+<h5><a href="https://changkun.de/s/urlstat">URLstat dashboard</a></h5>
+
+{{range .All}}
+<p><strong>{{.Host}}</strong></p>
+<table class="table">
+<tr><th>PV/UV</th><th>PATH</th></tr>
+{{range .Records}}
+<tr><td>{{.PV}}/{{.UV}}</td><td>{{.Path}}</td></tr>
+{{end}}
+</table>
+{{end}}
+
+</div>
+</body>
+</html>

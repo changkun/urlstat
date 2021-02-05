@@ -1,0 +1,28 @@
+# Copyright 2021 Changkun Ou. All rights reserved.
+# Use of this source code is governed by a MIT
+# license that can be found in the LICENSE file.
+
+version: "3"
+services:
+  urlstat:
+    restart: always
+    image: urlstat:latest
+    depends_on:
+      - mongo
+    deploy:
+      replicas: 1
+    networks:
+      - traefik_proxy
+  mongo:
+    container_name: mongodb
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./data/mongo:/data/db
+    restart: always
+    networks:
+      - traefik_proxy
+networks:
+  traefik_proxy:
+    external: true
