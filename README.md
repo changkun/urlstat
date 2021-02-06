@@ -21,12 +21,9 @@ if the retrieve succeed. For instance:
 <span id="urlstat-page-uv"><!-- info will be inserted --></span>
 ```
 
-## Example
-
-See https://golang.design/research/zero-alloc-call-sched/
+An example, see https://golang.design/research/zero-alloc-call-sched/
 
 ![image](https://user-images.githubusercontent.com/5498964/107117728-9cc01700-687c-11eb-92a3-495a4672717a.png)
-
 
 ## License
 

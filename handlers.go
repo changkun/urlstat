@@ -14,6 +14,8 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -40,15 +42,30 @@ var allowedOrigin = []string{
 	"https://blog.changkun.de",
 	"https://golang.design",
 	"https://www.golang.design",
+	"https://github.com",
+	"https://www.github.com",
+}
+
+func isOriginAlloed(origin string) bool {
+	allow := false
+	for idx := range allowedOrigin {
+		if strings.Contains(origin, allowedOrigin[idx]) {
+			allow = true
+			break
+		}
+	}
+	return allow
 }
 
 // recording implmenets a very basic pv/uv statistic function. client script
 // is distributed from /urlstat/client.js endpoint.
 func recording(w http.ResponseWriter, r *http.Request) {
 	if origin := r.Header.Get("Origin"); origin != "" {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "urlstat-ua, urlstat-url")
+		if isOriginAlloed(origin) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "urlstat-ua, urlstat-url")
+		}
 	}
 	if r.Method == "OPTIONS" {
 		return
@@ -62,6 +79,12 @@ func recording(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("bad request: %v", err), http.StatusBadRequest)
 	}()
 
+	keys, ok := r.URL.Query()["mode"]
+	if ok && len(keys[0]) > 0 && keys[0] == "github" {
+		err = githubMode(w, r)
+		return
+	}
+
 	loc := r.Header.Get("urlstat-url")
 	u, err := url.Parse(loc)
 	if err != nil {
@@ -70,15 +93,8 @@ func recording(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Double check origin, only allow expected
-	allow := false
 	ori := fmt.Sprintf("%s://%s", u.Scheme, u.Host)
-	for idx := range allowedOrigin {
-		if strings.Contains(ori, allowedOrigin[idx]) {
-			allow = true
-			break
-		}
-	}
-	if !allow {
+	if !isOriginAlloed(ori) {
 		err = errors.New("origin not allowed")
 		return
 	}
@@ -110,6 +126,43 @@ func recording(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(b)
 	return
+}
+
+// FIXME: non-resistent pv/uv counter, persist to db.
+var inmemCounter = sync.Map{} // map[string]uint64
+
+func githubMode(w http.ResponseWriter, r *http.Request) (err error) {
+	// Header DEBUG
+	for k, v := range r.Header {
+		l.Printf("%v: %v", k, v)
+	}
+
+	locs, ok := r.URL.Query()["repo"]
+	if !ok {
+		err = errors.New("missing location query parameter")
+		return
+	}
+	loc := locs[0] // Q: how to prevent false report?
+	l.Println("location: ", loc)
+
+	var pv uint64
+	counter := uint64(0)
+	ac, ok := inmemCounter.LoadOrStore(loc, &counter)
+	if ok {
+		c := ac.(*uint64)
+		pv = atomic.AddUint64(c, 1)
+	} else {
+		pv = atomic.AddUint64(&counter, 1)
+	}
+
+	badge, err := drawer.RenderBytes("PV", fmt.Sprintf("%d", pv), colorBlue)
+	if err != nil {
+		err = fmt.Errorf("failed to render stat badge: %w", err)
+		return
+	}
+	w.Header().Set("Content-Type", "image/svg+xml")
+	w.Write(badge)
+	return nil
 }
 
 // dashboard returns a simple dashboard view to view all existing statistics.
