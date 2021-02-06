@@ -44,6 +44,8 @@ var allowedOrigin = []string{
 	"https://www.golang.design",
 	"https://github.com",
 	"https://www.github.com",
+	"http://www.medien.ifi.lmu.de",
+	"https://www.medien.ifi.lmu.de",
 }
 
 func isOriginAlloed(origin string) bool {
