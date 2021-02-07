@@ -14,8 +14,6 @@ import (
 	"net/url"
 	"sort"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -104,24 +102,20 @@ func recording(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Save reported statistics to database
-	ip := readIP(r)
-	v := visit{
+	col := db.Database(dbname).Collection(u.Host)
+	err = saveVisit(r.Context(), col, &visit{
 		Path: u.Path,
-		IP:   ip,
+		IP:   readIP(r),
 		UA:   r.Header.Get("urlstat-ua"),
 		Time: time.Now().UTC(),
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer cancel()
-	col := db.Database(dbname).Collection(u.Host)
-	_, err = col.InsertOne(ctx, v)
+	})
 	if err != nil {
-		err = fmt.Errorf("failed to insert record: %w", err)
+		err = fmt.Errorf("failed to save visit: %w", err)
 		return
 	}
 
 	// Report existing statistics
-	pv, uv, err := countVisit(ctx, col, u.Path)
+	pv, uv, err := countVisit(r.Context(), col, u.Path)
 	if err != nil {
 		err = fmt.Errorf("failed to count user view count: %w", err)
 		return
@@ -132,13 +126,14 @@ func recording(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-// FIXME: non-resistent pv/uv counter, persist to db.
-var inmemCounter = sync.Map{} // map[string]uint64
-
 func githubMode(w http.ResponseWriter, r *http.Request) (err error) {
-	// Header DEBUG
-	for k, v := range r.Header {
-		l.Printf("%v: %v", k, v)
+	ua := r.Header.Get("User-Agent")
+
+	// GitHub uses camo, see:
+	// https://docs.github.com/en/github/authenticating-to-github/about-anonymized-image-urls
+	if !strings.Contains(ua, "github-camo") {
+		err = errors.New("origin not allowed, require github")
+		return
 	}
 
 	locs, ok := r.URL.Query()["repo"]
@@ -146,20 +141,52 @@ func githubMode(w http.ResponseWriter, r *http.Request) (err error) {
 		err = errors.New("missing location query parameter")
 		return
 	}
-	loc := locs[0] // Q: how to prevent false report?
-	l.Println("location: ", loc)
-
-	var pv uint64
-	counter := uint64(0)
-	ac, ok := inmemCounter.LoadOrStore(loc, &counter)
-	if ok {
-		c := ac.(*uint64)
-		pv = atomic.AddUint64(c, 1)
-	} else {
-		pv = atomic.AddUint64(&counter, 1)
+	loc := locs[0]
+	ss := strings.Split(loc, "/")
+	if len(ss) != 2 {
+		err = errors.New("invalid input, require username/repo")
+		return
 	}
 
-	badge, err := drawer.RenderBytes("PV", fmt.Sprintf("%d", pv), colorBlue)
+	// FIXME: maybe optimize here. Currently we always perform a reuqest
+	// to github and double check if the repo exist. This necessary
+	// because a repo might not exist, moved, or deleted.
+	repoPath := fmt.Sprintf("%s/%s", "https://github.com", loc)
+	resp, err := http.Get(repoPath)
+	if err != nil {
+		err = fmt.Errorf("failed to request github: %w", err)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK &&
+		resp.StatusCode != http.StatusMovedPermanently {
+		err = fmt.Errorf("%s is not a GitHub repository", repoPath)
+		return
+	}
+	// Figure out the new location if the repo is moved
+	if resp.StatusCode == http.StatusMovedPermanently {
+		repoPath = resp.Header.Get("Location")
+	}
+
+	col := db.Database(dbname).Collection("github.com")
+	err = saveVisit(r.Context(), col, &visit{
+		Path: repoPath,
+		IP:   readIP(r),
+		UA:   ua,
+		Time: time.Now().UTC(),
+	})
+	if err != nil {
+		err = fmt.Errorf("failed to save visit: %w", err)
+		return
+	}
+
+	pv, _, err := countVisit(r.Context(), col, repoPath)
+	if err != nil {
+		err = fmt.Errorf("failed to count visit: %w", err)
+		return
+	}
+
+	badge, err := drawer.RenderBytes("visitors", fmt.Sprintf("%d", pv), colorBlue)
 	if err != nil {
 		err = fmt.Errorf("failed to render stat badge: %w", err)
 		return
@@ -242,8 +269,24 @@ func dashbaord(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// saveVisit saves a visit to storage.
+func saveVisit(ctx context.Context, col *mongo.Collection, v *visit) (err error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+
+	_, err = col.InsertOne(ctx, v)
+	if err != nil {
+		err = fmt.Errorf("failed to insert record: %w", err)
+		return
+	}
+	return
+}
+
 // countVisit reports the pv and uv of the given hostname collection and path location.
 func countVisit(ctx context.Context, col *mongo.Collection, path string) (pv, uv int64, err error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+
 	pv, err = col.CountDocuments(ctx, bson.M{"path": path})
 	if err != nil {
 		return

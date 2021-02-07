@@ -6,6 +6,8 @@ It is designed for [blog.changkun.de](https://blog.changkun.de),
 
 ## Usage
 
+### Plain Mode
+
 Add the following script to a page:
 
 ```html
@@ -24,6 +26,17 @@ if the retrieve succeed. For instance:
 An example, see https://golang.design/research/zero-alloc-call-sched/
 
 ![image](https://user-images.githubusercontent.com/5498964/107117728-9cc01700-687c-11eb-92a3-495a4672717a.png)
+
+
+### GitHub Mode
+
+Use query parameter: `mode=github` and `repo=username/reponame`. For instance:
+
+```
+![](https://changkun.de/urlstat?mode=github&repo=changkun/urlstat)
+```
+
+![](https://changkun.de/urlstat?mode=github&repo=changkun/urlstat)
 
 ## License
 
