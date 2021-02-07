@@ -126,6 +126,23 @@ func recording(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+// TODO: allow more origins, and use regexp for matching.
+var allowedGitHubUsers = []string{
+	// Users
+	"changkun",
+	"ouchangkun",
+	"yangwenmai",
+	"maiyang",
+	"qcrao",
+	"aofei",
+
+	// Organizations
+	"mimuc",
+	"golang-design",
+	"talkgo",
+	"talkgofm",
+}
+
 func githubMode(w http.ResponseWriter, r *http.Request) (err error) {
 	ua := r.Header.Get("User-Agent")
 
@@ -148,8 +165,21 @@ func githubMode(w http.ResponseWriter, r *http.Request) (err error) {
 		return
 	}
 
+	// Only allow specified users, maybe allow more in the future.
+	allowed := false
+	for idx := range allowedGitHubUsers {
+		if strings.Compare(ss[0], allowedGitHubUsers[idx]) == 0 {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		err = errors.New("username is not allowed, please contact @changkun")
+		return
+	}
+
 	// FIXME: maybe optimize here. Currently we always perform a reuqest
-	// to github and double check if the repo exist. This necessary
+	// to github and double check if the repo exists. This is necessary
 	// because a repo might not exist, moved, or deleted.
 	repoPath := fmt.Sprintf("%s/%s", "https://github.com", loc)
 	resp, err := http.Get(repoPath)
