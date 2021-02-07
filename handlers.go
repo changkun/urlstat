@@ -72,6 +72,8 @@ func recording(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "OPTIONS" {
 		return
 	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Cache-Control", "max-age=0")
 
 	var err error
 	defer func() {
