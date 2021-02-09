@@ -26,10 +26,11 @@ type stat struct {
 }
 
 type visit struct {
-	Path string    `json:"path" bson:"path"`
-	IP   string    `json:"ip"   bson:"ip"`
-	UA   string    `json:"ua"   bson:"ua"`
-	Time time.Time `json:"time" bson:"time"`
+	Path    string    `json:"path"    bson:"path"`
+	IP      string    `json:"ip"      bson:"ip"`
+	UA      string    `json:"ua"      bson:"ua"`
+	Referer string    `json:"referer" bson:"referer"`
+	Time    time.Time `json:"time"    bson:"time"`
 }
 
 // TODO: allow more origins, and use regexp for matching.
@@ -105,10 +106,11 @@ func recording(w http.ResponseWriter, r *http.Request) {
 	// Save reported statistics to database
 	col := db.Database(dbname).Collection(u.Host)
 	err = saveVisit(r.Context(), col, &visit{
-		Path: u.Path,
-		IP:   readIP(r),
-		UA:   r.Header.Get("urlstat-ua"),
-		Time: time.Now().UTC(),
+		Path:    u.Path,
+		IP:      readIP(r),
+		UA:      r.Header.Get("urlstat-ua"),
+		Referer: r.Referer(),
+		Time:    time.Now().UTC(),
 	})
 	if err != nil {
 		err = fmt.Errorf("failed to save visit: %w", err)
@@ -145,7 +147,7 @@ var allowedGitHubUsers = []string{
 }
 
 func githubMode(w http.ResponseWriter, r *http.Request) (err error) {
-	ua := r.Header.Get("User-Agent")
+	ua := r.UserAgent()
 
 	// GitHub uses camo, see:
 	// https://docs.github.com/en/github/authenticating-to-github/about-anonymized-image-urls
