@@ -18,6 +18,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type stat struct {
@@ -240,7 +241,7 @@ func dashbaord(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("bad request: %v", err), http.StatusBadRequest)
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 	defer cancel()
 
 	cols, err := db.Database(dbname).ListCollectionNames(ctx, bson.D{})
@@ -249,37 +250,59 @@ func dashbaord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type record struct {
-		Path string
-		PV   int64
-		UV   int64
+		Path string `bson:"_id"`
+		PV   int64  `bson:"pv"`
+		UV   int64  `bson:"uv"`
 	}
 	type records struct {
 		Host    string
 		Records []record
 	}
+
 	var all []records
 	for _, hostname := range cols {
 		col := db.Database(dbname).Collection(hostname)
-		paths, err := col.Distinct(ctx, "path", bson.D{})
+		// mongodb query:
+		//
+		// db.getCollection('blog.changkun.de').aggregate([
+		// {"$group": {
+		//     _id: {path: "$path", ip:"$ip"},
+		//     count: {"$sum": 1}}
+		// },
+		// {"$group": {
+		//     _id: "$_id.path",
+		//     uv: {$sum: 1},
+		//     pv: {$sum: "$count"}}
+		// }])
+		p := mongo.Pipeline{
+			bson.D{
+				{"$group", bson.D{
+					{"_id", bson.D{{"path", "$path"}, {"ip", "$ip"}}},
+					{"count", bson.D{{"$sum", 1}}},
+				}},
+			},
+			bson.D{
+				{"$group", bson.D{
+					{"_id", "$_id.path"},
+					{"uv", bson.D{{"$sum", 1}}},
+					{"pv", bson.D{{"$sum", "$count"}}},
+				}},
+			},
+		}
+		opts := options.Aggregate().SetMaxTime(10 * time.Second)
+		cur, err := col.Aggregate(ctx, p, opts)
 		if err != nil {
-			err = fmt.Errorf("failed to distinct paths: %w", err)
+			err = fmt.Errorf("failed to count visit: %w", err)
 			return
 		}
-		rs := make([]record, len(paths))
-		for i := range rs {
-			p := paths[i].(string)
-			pv, uv, err := countVisit(ctx, col, p)
-			if err != nil {
-				err = fmt.Errorf("failed to count visit: %w", err)
-				return
-			}
-			rs[i].Path = p
-			rs[i].PV = pv
-			rs[i].UV = uv
+		var results []record
+		if err := cur.All(ctx, &results); err != nil {
+			err = fmt.Errorf("failed to count visit: %w", err)
+			return
 		}
 		all = append(all, records{
 			Host:    hostname,
-			Records: rs,
+			Records: results,
 		})
 	}
 
