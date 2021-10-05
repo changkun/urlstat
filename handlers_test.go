@@ -28,7 +28,7 @@ func BenchmarkCount(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, _, err := countVisit(context.Background(), col, "/urlstat/dashbaord")
+			_, _, err := countVisit(context.Background(), col, "/urlstat/dashboard")
 			if err != nil {
 				b.Fatalf("conection failed")
 			}

@@ -53,7 +53,7 @@ func init() {
 func main() {
 	r := http.NewServeMux()
 	r.HandleFunc("/urlstat", recording)
-	r.HandleFunc("/urlstat/dashboard", dashbaord)
+	r.HandleFunc("/urlstat/dashboard", dashboard)
 	r.HandleFunc("/urlstat/client.js", func(w http.ResponseWriter, r *http.Request) {
 		f, _ := publicFS.Open("client.js")
 		b, _ := io.ReadAll(f)

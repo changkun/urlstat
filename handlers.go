@@ -152,7 +152,7 @@ func githubMode(w http.ResponseWriter, r *http.Request) (err error) {
 	ua := r.UserAgent()
 
 	// GitHub uses camo, see:
-	// https://docs.github.com/en/github/authenticating-to-github/about-anonymized-image-urls
+	// https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-anonymized-urls
 	if !strings.Contains(ua, "github-camo") {
 		err = errors.New("origin not allowed, require github")
 		return
@@ -232,7 +232,7 @@ func githubMode(w http.ResponseWriter, r *http.Request) (err error) {
 }
 
 // dashboard returns a simple dashboard view to view all existing statistics.
-func dashbaord(w http.ResponseWriter, r *http.Request) {
+func dashboard(w http.ResponseWriter, r *http.Request) {
 	var err error
 	defer func() {
 		if err == nil {
