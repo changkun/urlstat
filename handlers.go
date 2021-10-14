@@ -48,6 +48,7 @@ var allowedOrigin = []string{
 	"https://www.medien.ifi.lmu.de",
 	"https://qcrao.com",
 	"https://moodle.lmu.de",
+	"https://talkgo.dev",
 }
 
 func isOriginAlloed(origin string) bool {
