@@ -1,0 +1,33 @@
+# Trusted source: a trusted source must be communicated beforehand.
+# Please send an email to hi@changkun.de
+
+---
+# setting production to false will add a localhost address to origin.
+production: true
+domain:
+  - https://changkun.de
+  - https://www.changkun.de
+  - https://blog.changkun.de
+  - https://golang.design
+  - https://www.golang.design
+  - https://github.com
+  - https://www.github.com
+  - http://www.medien.ifi.lmu.de
+  - https://www.medien.ifi.lmu.de
+  - https://qcrao.com
+  - https://moodle.lmu.de
+  - https://talkgo.dev
+  - https://maiyang.me
+github:
+  - changkun
+  - ouchangkun
+  - yangwenmai
+  - maiyang
+  - qcrao
+  - aofei
+  - mimuc
+  - golang-design
+  - talkgo
+  - talkgofm
+
+

@@ -9,64 +9,39 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
 	"net/http"
 	"net/url"
-	"sort"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type stat struct {
 	PagePV int64 `json:"page_pv"`
 	PageUV int64 `json:"page_uv"`
+	SitePV int64 `json:"site_pv"`
+	SiteUV int64 `json:"site_uv"`
 }
 
 type visit struct {
-	Path    string    `json:"path"    bson:"path"`
-	IP      string    `json:"ip"      bson:"ip"`
-	UA      string    `json:"ua"      bson:"ua"`
-	Referer string    `json:"referer" bson:"referer"`
-	Time    time.Time `json:"time"    bson:"time"`
+	VisitorID string    `json:"visitor_id" bson:"visitor_id"`
+	Path      string    `json:"path"    bson:"path"`
+	IP        string    `json:"ip"      bson:"ip"`
+	UA        string    `json:"ua"      bson:"ua"`
+	Referer   string    `json:"referer" bson:"referer"`
+	Time      time.Time `json:"time"    bson:"time"`
 }
 
-// TODO: allow more origins, and use regexp for matching.
-var allowedOrigin = []string{
-	// "http://localhost",
-	"https://changkun.de",
-	"https://www.changkun.de",
-	"https://blog.changkun.de",
-	"https://golang.design",
-	"https://www.golang.design",
-	"https://github.com",
-	"https://www.github.com",
-	"http://www.medien.ifi.lmu.de",
-	"https://www.medien.ifi.lmu.de",
-	"https://qcrao.com",
-	"https://moodle.lmu.de",
-	"https://talkgo.dev",
-}
-
-func isOriginAlloed(origin string) bool {
-	allow := false
-	for idx := range allowedOrigin {
-		if strings.Contains(origin, allowedOrigin[idx]) {
-			allow = true
-			break
-		}
-	}
-	return allow
-}
+const urlstatCookieVid = "urlstat_vid"
 
 // recording implmenets a very basic pv/uv statistic function. client script
 // is distributed from /urlstat/client.js endpoint.
 func recording(w http.ResponseWriter, r *http.Request) {
 	if origin := r.Header.Get("Origin"); origin != "" {
-		if isOriginAlloed(origin) {
+		if source.isAllowed(origin, true) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "urlstat-ua, urlstat-url")
@@ -101,261 +76,116 @@ func recording(w http.ResponseWriter, r *http.Request) {
 
 	// Double check origin, only allow expected
 	ori := fmt.Sprintf("%s://%s", u.Scheme, u.Host)
-	if !isOriginAlloed(ori) {
+	if !source.isAllowed(ori, true) {
 		err = errors.New("origin not allowed")
 		return
 	}
 
 	// Save reported statistics to database
+	var cookieVid string
+	c, err := r.Cookie(urlstatCookieVid)
+	if err != nil {
+		cookieVid = ""
+	} else {
+		cookieVid = c.Value
+	}
+
+	var vid string
 	col := db.Database(dbname).Collection(u.Host)
-	err = saveVisit(r.Context(), col, &visit{
-		Path:    u.Path,
-		IP:      readIP(r),
-		UA:      r.Header.Get("urlstat-ua"),
-		Referer: r.Referer(),
-		Time:    time.Now().UTC(),
+	vid, err = saveVisit(r.Context(), col, &visit{
+		VisitorID: cookieVid,
+		Path:      u.Path,
+		IP:        readIP(r),
+		UA:        r.Header.Get("urlstat-ua"),
+		Referer:   r.Referer(),
+		Time:      time.Now().UTC(),
 	})
 	if err != nil {
 		err = fmt.Errorf("failed to save visit: %w", err)
 		return
 	}
-
-	// Report existing statistics
-	pv, uv, err := countVisit(r.Context(), col, u.Path)
-	if err != nil {
-		err = fmt.Errorf("failed to count user view count: %w", err)
-		return
+	if cookieVid == "" && vid != "" {
+		w.Header().Set("Set-Cookie", urlstatCookieVid+"="+vid)
 	}
-	b, _ := json.Marshal(stat{PagePV: pv, PageUV: uv})
+
+	// Report page statistics
+	var stat stat
+	for _, value := range r.URL.Query()["report"] {
+		args := strings.Split(value, " ")
+		for _, arg := range args {
+			var pv, uv int64
+			pv, uv, err = countVisit(r.Context(), col, u.Path, arg)
+			if err != nil {
+				err = fmt.Errorf("failed to count user view count: %w", err)
+				return
+			}
+			switch arg {
+			case "page":
+				stat.PagePV = pv
+				stat.PageUV = uv
+			case "site":
+				stat.SitePV = pv
+				stat.SiteUV = uv
+			}
+		}
+	}
+
+	b, _ := json.Marshal(stat)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(b)
-	return
-}
-
-// TODO: allow more origins, and use regexp for matching.
-var allowedGitHubUsers = []string{
-	// Users
-	"changkun",
-	"ouchangkun",
-	"yangwenmai",
-	"maiyang",
-	"qcrao",
-	"aofei",
-
-	// Organizations
-	"mimuc",
-	"golang-design",
-	"talkgo",
-	"talkgofm",
-}
-
-func githubMode(w http.ResponseWriter, r *http.Request) (err error) {
-	ua := r.UserAgent()
-
-	// GitHub uses camo, see:
-	// https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-anonymized-urls
-	if !strings.Contains(ua, "github-camo") {
-		err = errors.New("origin not allowed, require github")
-		return
-	}
-
-	locs, ok := r.URL.Query()["repo"]
-	if !ok {
-		err = errors.New("missing location query parameter")
-		return
-	}
-	loc := locs[0]
-	ss := strings.Split(loc, "/")
-	if len(ss) != 2 {
-		err = errors.New("invalid input, require username/repo")
-		return
-	}
-
-	// Only allow specified users, maybe allow more in the future.
-	allowed := false
-	for idx := range allowedGitHubUsers {
-		if strings.Compare(ss[0], allowedGitHubUsers[idx]) == 0 {
-			allowed = true
-			break
-		}
-	}
-	if !allowed {
-		err = errors.New("username is not allowed, please contact @changkun")
-		return
-	}
-
-	// FIXME: maybe optimize here. Currently we always perform a reuqest
-	// to github and double check if the repo exists. This is necessary
-	// because a repo might not exist, moved, or deleted.
-	repoPath := fmt.Sprintf("%s/%s", "https://github.com", loc)
-	resp, err := http.Get(repoPath)
-	if err != nil {
-		err = fmt.Errorf("failed to request github: %w", err)
-		return
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK &&
-		resp.StatusCode != http.StatusMovedPermanently {
-		err = fmt.Errorf("%s is not a GitHub repository", repoPath)
-		return
-	}
-	// Figure out the new location if the repo is moved
-	if resp.StatusCode == http.StatusMovedPermanently {
-		repoPath = resp.Header.Get("Location")
-	}
-
-	col := db.Database(dbname).Collection("github.com")
-	err = saveVisit(r.Context(), col, &visit{
-		Path: repoPath,
-		IP:   readIP(r),
-		UA:   ua,
-		Time: time.Now().UTC(),
-	})
-	if err != nil {
-		err = fmt.Errorf("failed to save visit: %w", err)
-		return
-	}
-
-	pv, _, err := countVisit(r.Context(), col, repoPath)
-	if err != nil {
-		err = fmt.Errorf("failed to count visit: %w", err)
-		return
-	}
-
-	badge, err := drawer.RenderBytes("visitors", fmt.Sprintf("%d", pv), colorBlue)
-	if err != nil {
-		err = fmt.Errorf("failed to render stat badge: %w", err)
-		return
-	}
-	w.Header().Set("Content-Type", "image/svg+xml")
-	w.Write(badge)
-	return nil
-}
-
-// dashboard returns a simple dashboard view to view all existing statistics.
-func dashboard(w http.ResponseWriter, r *http.Request) {
-	var err error
-	defer func() {
-		if err == nil {
-			return
-		}
-		http.Error(w, fmt.Sprintf("bad request: %v", err), http.StatusBadRequest)
-	}()
-
-	ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
-	defer cancel()
-
-	cols, err := db.Database(dbname).ListCollectionNames(ctx, bson.D{})
-	if err != nil {
-		err = fmt.Errorf("failed to list collections: %w", err)
-		return
-	}
-	type record struct {
-		Path string `bson:"_id"`
-		PV   int64  `bson:"pv"`
-		UV   int64  `bson:"uv"`
-	}
-	type records struct {
-		Host    string
-		Records []record
-	}
-
-	var all []records
-	for _, hostname := range cols {
-		col := db.Database(dbname).Collection(hostname)
-		// mongodb query:
-		//
-		// db.getCollection('blog.changkun.de').aggregate([
-		// {"$group": {
-		//     _id: {path: "$path", ip:"$ip"},
-		//     count: {"$sum": 1}}
-		// },
-		// {"$group": {
-		//     _id: "$_id.path",
-		//     uv: {$sum: 1},
-		//     pv: {$sum: "$count"}}
-		// }])
-		p := mongo.Pipeline{
-			bson.D{
-				{"$group", bson.D{
-					{"_id", bson.D{{"path", "$path"}, {"ip", "$ip"}}},
-					{"count", bson.D{{"$sum", 1}}},
-				}},
-			},
-			bson.D{
-				{"$group", bson.D{
-					{"_id", "$_id.path"},
-					{"uv", bson.D{{"$sum", 1}}},
-					{"pv", bson.D{{"$sum", "$count"}}},
-				}},
-			},
-		}
-		opts := options.Aggregate().SetMaxTime(10 * time.Second)
-		cur, err := col.Aggregate(ctx, p, opts)
-		if err != nil {
-			err = fmt.Errorf("failed to count visit: %w", err)
-			return
-		}
-		var results []record
-		if err := cur.All(ctx, &results); err != nil {
-			err = fmt.Errorf("failed to count visit: %w", err)
-			return
-		}
-		all = append(all, records{
-			Host:    hostname,
-			Records: results,
-		})
-	}
-
-	for idx := range all {
-		sort.Slice(all[idx].Records, func(i, j int) bool {
-			if all[idx].Records[i].PV > all[idx].Records[j].PV {
-				return true
-			}
-			return all[idx].Records[i].UV > all[idx].Records[j].UV
-		})
-	}
-
-	t, err := template.ParseFS(publicFS, "dashboard.html")
-	if err != nil {
-		err = fmt.Errorf("failed to parse dashboard.html: %w", err)
-		return
-	}
-	err = t.Execute(w, struct{ All []records }{all})
-	if err != nil {
-		err = fmt.Errorf("failed to render template: %w", err)
-	}
 }
 
 // saveVisit saves a visit to storage.
-func saveVisit(ctx context.Context, col *mongo.Collection, v *visit) (err error) {
+func saveVisit(ctx context.Context, col *mongo.Collection, v *visit) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
-	_, err = col.InsertOne(ctx, v)
+	// if visitor ID does not present, then generate a new visitor ID.
+	if v.VisitorID == "" {
+		v.VisitorID = uuid.New().String()
+	}
+
+	_, err := col.InsertOne(ctx, v)
 	if err != nil {
 		err = fmt.Errorf("failed to insert record: %w", err)
-		return
+		return "", err
 	}
-	return
+	return v.VisitorID, nil
 }
 
 // countVisit reports the pv and uv of the given hostname collection and path location.
-func countVisit(ctx context.Context, col *mongo.Collection, path string) (pv, uv int64, err error) {
+func countVisit(ctx context.Context, col *mongo.Collection, path string, mode string) (pv int64, uv int64, err error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
-	pv, err = col.CountDocuments(ctx, bson.M{"path": path})
-	if err != nil {
-		return
+	switch mode {
+	case "site":
+		pv, err = col.CountDocuments(ctx, bson.M{})
+		if err != nil {
+			return
+		}
+
+		var result []interface{}
+		result, err = col.Distinct(ctx, "ip", bson.D{})
+		if err != nil {
+			return
+		}
+		uv = int64(len(result))
+	case "page":
+		pv, err = col.CountDocuments(ctx, bson.M{"path": path})
+		if err != nil {
+			return
+		}
+
+		var result []interface{}
+		result, err = col.Distinct(ctx, "ip", bson.D{
+			{Key: "path", Value: bson.D{{Key: "$eq", Value: path}}},
+		})
+		if err != nil {
+			return
+		}
+		uv = int64(len(result))
 	}
 
-	result, err := col.Distinct(ctx, "ip", bson.D{
-		{Key: "path", Value: bson.D{{Key: "$eq", Value: path}}},
-	})
-	if err != nil {
-		return
-	}
-	uv = int64(len(result))
 	return
 }

@@ -14,11 +14,12 @@ Add the following script to a page:
 <script async src="//changkun.de/urlstat/client.js"></script>
 ```
 
-The script will look for elements with ID `urlstat-page-pv`
-and `urlstat-page-uv` and manipulate the information
+The script will look for elements with ID `urlstat-site-pv`, `urlstat-site-uv`, `urlstat-page-pv`, and `urlstat-page-uv` and manipulate the information
 if the retrieve succeed. For instance:
 
 ```html
+<span id="urlstat-site-pv"><!-- info will be inserted --></span>
+<span id="urlstat-site-uv"><!-- info will be inserted --></span>
 <span id="urlstat-page-pv"><!-- info will be inserted --></span>
 <span id="urlstat-page-uv"><!-- info will be inserted --></span>
 ```
