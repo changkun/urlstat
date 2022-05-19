@@ -29,7 +29,9 @@ var (
 
 const (
 	dbname = "urlstat"
-	dburi  = "mongodb://mongodb:27017"
+	// FIXME: This service currently depends on an external project for database.
+	// We can't afford instances to run two mongodb containers.
+	dburi = "mongodb://redirdb:27017"
 )
 
 func init() {
@@ -48,6 +50,7 @@ func init() {
 	if err != nil {
 		l.Fatalf("cannot connect to database: %v", err)
 	}
+	log.Printf("connected to database %v", dburi)
 }
 
 func main() {
