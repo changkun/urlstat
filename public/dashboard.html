@@ -33,11 +33,17 @@ a:hover {
 </head>
 <body>
 <div id="app">
-<h1>changkun.de</h1>
-<h5><a href="https://changkun.de/s/urlstat">URLstat dashboard</a></h5>
+<h1><a href="https://changkun.de/s/urlstat">URLstat dashboard</a></h1>
+<h2>List of Hosts</h2>
+<ul>
+  {{range .All}}
+  <li><a href="#{{.Host}}">{{.Host}}</a></li>
+  {{end}}
+</ul>
+
 
 {{range .All}}
-<p><strong>{{.Host}}</strong></p>
+<h2 id="{{.Host}}"><strong>{{.Host}}</strong></h2>
 <table class="table">
 <tr><th>PV/UV</th><th>PATH</th></tr>
 {{range .Records}}
