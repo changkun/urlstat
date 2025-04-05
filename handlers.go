@@ -111,8 +111,7 @@ func recording(w http.ResponseWriter, r *http.Request) {
 	// Report page statistics
 	var stat stat
 	for _, value := range r.URL.Query()["report"] {
-		args := strings.Split(value, " ")
-		for _, arg := range args {
+		for arg := range strings.SplitSeq(value, " ") {
 			var pv, uv int64
 			pv, uv, err = countVisit(r.Context(), col, u.Path, arg)
 			if err != nil {
@@ -165,7 +164,7 @@ func countVisit(ctx context.Context, col *mongo.Collection, path string, mode st
 			return
 		}
 
-		var result []interface{}
+		var result []any
 		result, err = col.Distinct(ctx, "ip", bson.D{})
 		if err != nil {
 			return
@@ -177,7 +176,7 @@ func countVisit(ctx context.Context, col *mongo.Collection, path string, mode st
 			return
 		}
 
-		var result []interface{}
+		var result []any
 		result, err = col.Distinct(ctx, "ip", bson.D{
 			{Key: "path", Value: bson.D{{Key: "$eq", Value: path}}},
 		})
