@@ -10,7 +10,9 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -132,13 +134,14 @@ func migrateCollection(ctx context.Context, col *mongo.Collection, pgPool *pgxpo
 			visitorID = uuid.New().String()
 		}
 
+		// Sanitize all string fields to remove invalid UTF-8
 		rows = append(rows, []any{
-			hostname,
+			sanitizeUTF8(hostname),
 			visitorID,
-			v.Path,
-			v.IP,
-			v.UA,
-			v.Referer,
+			sanitizeUTF8(v.Path),
+			sanitizeUTF8(v.IP),
+			sanitizeUTF8(v.UA),
+			sanitizeUTF8(v.Referer),
 			v.Time,
 		})
 
@@ -181,6 +184,25 @@ func bulkInsert(ctx context.Context, pgPool *pgxpool.Pool, rows [][]any) (int64,
 		return 0, err
 	}
 	return copyCount, nil
+}
+
+// sanitizeUTF8 removes invalid UTF-8 sequences from a string
+func sanitizeUTF8(s string) string {
+	if utf8.ValidString(s) {
+		return s
+	}
+	// Replace invalid sequences with empty string
+	var b strings.Builder
+	for i, r := range s {
+		if r == utf8.RuneError {
+			_, size := utf8.DecodeRuneInString(s[i:])
+			if size == 1 {
+				continue // skip invalid byte
+			}
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }
 
 func verifyMigration(ctx context.Context, mongoDB *mongo.Database, pgPool *pgxpool.Pool, collections []string) {
