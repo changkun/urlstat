@@ -3,55 +3,457 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>changkun.de's URLstat dashboard</title>
-<script async src="//changkun.de/urlstat/client.js"></script>
+<title>URLstat Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 :root {
---gray-1: #202224;
---gray-2: #3e4042;
---gray-6: #aaacae;
---turq-med: #00add8;
+  --gray-1: #202224;
+  --gray-2: #3e4042;
+  --gray-3: #2a2c2e;
+  --gray-6: #aaacae;
+  --gray-7: #d0d2d4;
+  --turq-med: #00add8;
+  --turq-light: #5dc9e2;
+}
+* {
+  box-sizing: border-box;
 }
 body {
   margin: 0;
-  font-family: Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background-color: var(--gray-1);
   color: var(--gray-6);
+  line-height: 1.5;
 }
-table { text-align: left; }
-body { background-color: var(--gray-2); }
-a {
+#app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+h1 {
+  color: var(--gray-7);
+  margin: 0 0 20px 0;
+  font-size: 1.5rem;
+}
+h1 a {
   color: var(--turq-med);
   text-decoration: none;
 }
-a:hover {
-  color: var(--turq-med);
-  text-decoration: none;
+h1 a:hover {
+  color: var(--turq-light);
 }
-#app { padding: 20px; }
+
+/* Controls */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 15px;
+  background: var(--gray-2);
+  border-radius: 8px;
+}
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.control-label {
+  font-size: 0.875rem;
+  color: var(--gray-6);
+}
+select {
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  border: 1px solid var(--gray-3);
+  border-radius: 4px;
+  background: var(--gray-1);
+  color: var(--gray-7);
+  cursor: pointer;
+}
+select:focus {
+  outline: none;
+  border-color: var(--turq-med);
+}
+.time-buttons {
+  display: flex;
+  gap: 4px;
+}
+.time-btn {
+  padding: 8px 14px;
+  font-size: 0.875rem;
+  border: 1px solid var(--gray-3);
+  border-radius: 4px;
+  background: var(--gray-1);
+  color: var(--gray-6);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.time-btn:hover {
+  border-color: var(--turq-med);
+  color: var(--gray-7);
+}
+.time-btn.active {
+  background: var(--turq-med);
+  border-color: var(--turq-med);
+  color: var(--gray-1);
+}
+
+/* Summary */
+.summary {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.summary-card {
+  padding: 15px 25px;
+  background: var(--gray-2);
+  border-radius: 8px;
+  text-align: center;
+}
+.summary-value {
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--gray-7);
+}
+.summary-label {
+  font-size: 0.875rem;
+  color: var(--gray-6);
+  margin-top: 4px;
+}
+
+/* Chart */
+.chart-container {
+  background: var(--gray-2);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.chart-title {
+  font-size: 1rem;
+  color: var(--gray-7);
+  margin: 0 0 15px 0;
+}
+.chart-wrapper {
+  position: relative;
+  height: 300px;
+}
+
+/* Table */
+.table-container {
+  background: var(--gray-2);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.table-title {
+  font-size: 1rem;
+  color: var(--gray-7);
+  margin: 0;
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--gray-3);
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th, td {
+  padding: 12px 20px;
+  text-align: left;
+}
+th {
+  background: var(--gray-3);
+  color: var(--gray-7);
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+td {
+  border-bottom: 1px solid var(--gray-3);
+  font-size: 0.875rem;
+}
+tr:last-child td {
+  border-bottom: none;
+}
+tr:hover td {
+  background: var(--gray-3);
+}
+.path-cell {
+  word-break: break-all;
+  max-width: 600px;
+}
+.stats-cell {
+  white-space: nowrap;
+  color: var(--turq-med);
+  font-family: monospace;
+}
+
+/* Loading */
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--gray-6);
+}
+
+/* Empty state */
+.empty {
+  text-align: center;
+  padding: 40px;
+  color: var(--gray-6);
+}
 </style>
 </head>
 <body>
 <div id="app">
-<h1><a href="https://changkun.de/s/urlstat">URLstat dashboard</a></h1>
-<h2>List of Hosts</h2>
-<ul>
-  {{range .All}}
-  <li><a href="#{{.Host}}">{{.Host}}</a></li>
-  {{end}}
-</ul>
+  <h1><a href="https://changkun.de/s/urlstat">URLstat Dashboard</a></h1>
 
+  <div class="controls">
+    <div class="control-group">
+      <span class="control-label">Host:</span>
+      <select id="hostname-select">
+        <option value="">Loading...</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <span class="control-label">Period:</span>
+      <div class="time-buttons">
+        <button class="time-btn" data-days="7">7d</button>
+        <button class="time-btn active" data-days="30">30d</button>
+        <button class="time-btn" data-days="90">90d</button>
+        <button class="time-btn" data-days="365">365d</button>
+      </div>
+    </div>
+  </div>
 
-{{range .All}}
-<h2 id="{{.Host}}"><strong>{{.Host}}</strong></h2>
-<table class="table">
-<tr><th>PV/UV</th><th>PATH</th></tr>
-{{range .Records}}
-<tr><td>{{.PV}}/{{.UV}}</td><td>{{.Path}}</td></tr>
-{{end}}
-</table>
-{{end}}
+  <div class="summary">
+    <div class="summary-card">
+      <div class="summary-value" id="total-pv">-</div>
+      <div class="summary-label">Page Views</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-value" id="total-uv">-</div>
+      <div class="summary-label">Unique Visitors</div>
+    </div>
+  </div>
 
+  <div class="chart-container">
+    <h2 class="chart-title">Traffic Trends</h2>
+    <div class="chart-wrapper">
+      <canvas id="trend-chart"></canvas>
+    </div>
+  </div>
+
+  <div class="table-container">
+    <h2 class="table-title">Top Pages</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Path</th>
+          <th>PV / UV</th>
+        </tr>
+      </thead>
+      <tbody id="paths-table">
+        <tr><td colspan="2" class="loading">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
 </div>
+
+<script>
+(function() {
+  let chart = null;
+  let currentDays = 30;
+  let currentHostname = '';
+
+  const hostnameSelect = document.getElementById('hostname-select');
+  const timeButtons = document.querySelectorAll('.time-btn');
+  const totalPvEl = document.getElementById('total-pv');
+  const totalUvEl = document.getElementById('total-uv');
+  const pathsTable = document.getElementById('paths-table');
+
+  function formatNumber(n) {
+    return n.toLocaleString();
+  }
+
+  async function fetchData() {
+    const params = new URLSearchParams({
+      days: currentDays
+    });
+    if (currentHostname) {
+      params.set('hostname', currentHostname);
+    }
+
+    try {
+      const response = await fetch('/urlstat/dashboard/api?' + params);
+      if (!response.ok) {
+        throw new Error('Failed to fetch data');
+      }
+      return await response.json();
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      return null;
+    }
+  }
+
+  function updateHostnameSelect(data) {
+    hostnameSelect.innerHTML = '';
+    if (!data.hostnames || data.hostnames.length === 0) {
+      hostnameSelect.innerHTML = '<option value="">No data</option>';
+      return;
+    }
+    data.hostnames.forEach(h => {
+      const opt = document.createElement('option');
+      opt.value = h;
+      opt.textContent = h;
+      if (h === data.hostname) {
+        opt.selected = true;
+      }
+      hostnameSelect.appendChild(opt);
+    });
+    currentHostname = data.hostname;
+  }
+
+  function updateSummary(data) {
+    totalPvEl.textContent = formatNumber(data.summary.total_pv);
+    totalUvEl.textContent = formatNumber(data.summary.total_uv);
+  }
+
+  function updateChart(data) {
+    const ctx = document.getElementById('trend-chart').getContext('2d');
+
+    const labels = data.timeseries.map(d => d.date);
+    const pvData = data.timeseries.map(d => d.pv);
+    const uvData = data.timeseries.map(d => d.uv);
+
+    if (chart) {
+      chart.destroy();
+    }
+
+    chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Page Views',
+            data: pvData,
+            borderColor: '#00add8',
+            backgroundColor: 'rgba(0, 173, 216, 0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 2,
+            pointHoverRadius: 5
+          },
+          {
+            label: 'Unique Visitors',
+            data: uvData,
+            borderColor: '#5dc9e2',
+            backgroundColor: 'rgba(93, 201, 226, 0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 2,
+            pointHoverRadius: 5
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              color: '#aaacae',
+              usePointStyle: true,
+              padding: 20
+            }
+          },
+          tooltip: {
+            backgroundColor: '#3e4042',
+            titleColor: '#d0d2d4',
+            bodyColor: '#aaacae',
+            borderColor: '#5a5c5e',
+            borderWidth: 1
+          }
+        },
+        scales: {
+          x: {
+            grid: {
+              color: 'rgba(170, 172, 174, 0.1)'
+            },
+            ticks: {
+              color: '#aaacae',
+              maxTicksLimit: 10
+            }
+          },
+          y: {
+            beginAtZero: true,
+            grid: {
+              color: 'rgba(170, 172, 174, 0.1)'
+            },
+            ticks: {
+              color: '#aaacae'
+            }
+          }
+        }
+      }
+    });
+  }
+
+  function updateTable(data) {
+    if (!data.paths || data.paths.length === 0) {
+      pathsTable.innerHTML = '<tr><td colspan="2" class="empty">No data for this period</td></tr>';
+      return;
+    }
+
+    pathsTable.innerHTML = data.paths.map(p => `
+      <tr>
+        <td class="path-cell">${escapeHtml(p.path)}</td>
+        <td class="stats-cell">${formatNumber(p.pv)} / ${formatNumber(p.uv)}</td>
+      </tr>
+    `).join('');
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  async function refresh() {
+    const data = await fetchData();
+    if (!data) {
+      pathsTable.innerHTML = '<tr><td colspan="2" class="empty">Error loading data</td></tr>';
+      return;
+    }
+
+    updateHostnameSelect(data);
+    updateSummary(data);
+    updateChart(data);
+    updateTable(data);
+  }
+
+  // Event listeners
+  hostnameSelect.addEventListener('change', function() {
+    currentHostname = this.value;
+    refresh();
+  });
+
+  timeButtons.forEach(btn => {
+    btn.addEventListener('click', function() {
+      timeButtons.forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      currentDays = parseInt(this.dataset.days);
+      refresh();
+    });
+  });
+
+  // Initial load
+  refresh();
+})();
+</script>
 </body>
 </html>
