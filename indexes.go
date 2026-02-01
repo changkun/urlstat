@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"sync"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -36,6 +37,11 @@ func ensureIndexes(ctx context.Context, col *mongo.Collection) error {
 
 // ensureAllIndexes creates the required indexes on all existing collections in the database.
 func ensureAllIndexes(ctx context.Context, database *mongo.Database) error {
+	// Wait for database connection to be ready
+	if err := waitForConnection(ctx, database.Client()); err != nil {
+		return err
+	}
+
 	collections, err := database.ListCollectionNames(ctx, bson.D{})
 	if err != nil {
 		return err
@@ -43,12 +49,49 @@ func ensureAllIndexes(ctx context.Context, database *mongo.Database) error {
 
 	for _, name := range collections {
 		col := database.Collection(name)
-		if err := ensureIndexes(ctx, col); err != nil {
+		if err := ensureIndexesWithRetry(ctx, col, 3); err != nil {
 			l.Printf("failed to ensure indexes for collection %s: %v", name, err)
 			// Continue with other collections even if one fails
 		}
 	}
 	return nil
+}
+
+// waitForConnection pings the database until it responds or context expires.
+func waitForConnection(ctx context.Context, client *mongo.Client) error {
+	for i := 0; i < 10; i++ {
+		pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		err := client.Ping(pingCtx, nil)
+		cancel()
+		if err == nil {
+			return nil
+		}
+		l.Printf("waiting for database connection (attempt %d): %v", i+1, err)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
+	}
+	return client.Ping(ctx, nil)
+}
+
+// ensureIndexesWithRetry creates indexes with retry logic for transient failures.
+func ensureIndexesWithRetry(ctx context.Context, col *mongo.Collection, maxRetries int) error {
+	var err error
+	for i := 0; i < maxRetries; i++ {
+		err = ensureIndexes(ctx, col)
+		if err == nil {
+			return nil
+		}
+		l.Printf("index creation attempt %d failed for %s: %v", i+1, col.Name(), err)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Duration(i+1) * 2 * time.Second):
+		}
+	}
+	return err
 }
 
 // indexedCollections tracks which collections have had indexes ensured.
@@ -65,8 +108,9 @@ func ensureIndexesOnce(col *mongo.Collection) {
 
 	// Run index creation in background
 	go func() {
-		ctx := context.Background()
-		if err := ensureIndexes(ctx, col); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		if err := ensureIndexesWithRetry(ctx, col, 3); err != nil {
 			l.Printf("async index creation failed for %s: %v", name, err)
 			// Remove from map so it can be retried
 			indexedCollections.Delete(name)
