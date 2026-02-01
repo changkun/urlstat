@@ -7,11 +7,40 @@ services:
   urlstat:
     restart: always
     image: urlstat:latest
-    # FIXME: This service is implicitly depending on https://changkun.de/s/redir
     deploy:
       replicas: 1
+    environment:
+      - URLSTAT_DB=postgres://urlstat:urlstat@urlstatdb:5432/urlstat?sslmode=disable
+    depends_on:
+      urlstatdb:
+        condition: service_healthy
     networks:
       - traefik_proxy
+      - internal
+
+  urlstatdb:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: urlstat
+      POSTGRES_PASSWORD: urlstat
+      POSTGRES_DB: urlstat
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U urlstat"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+volumes:
+  postgres_data:
+
 networks:
   traefik_proxy:
     external: true
+  internal:
+    driver: bridge

@@ -7,30 +7,36 @@ package main
 import (
 	"context"
 	"testing"
-	"time"
 
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// FIXME: testable
+// BenchmarkCount benchmarks the countVisit function against PostgreSQL.
+// Requires a local PostgreSQL instance at postgres://urlstat:urlstat@localhost:5432/urlstat
 func BenchmarkCount(b *testing.B) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	db, err := mongo.Connect(ctx,
-		options.Client().ApplyURI("mongodb://0.0.0.0:27017"))
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, "postgres://urlstat:urlstat@localhost:5432/urlstat?sslmode=disable")
 	if err != nil {
-		b.Fatal(err)
+		b.Fatalf("failed to connect to database: %v", err)
 	}
-	col := db.Database(dbname).Collection("localhost")
+	defer pool.Close()
+
+	if err := pool.Ping(ctx); err != nil {
+		b.Fatalf("failed to ping database: %v", err)
+	}
+
+	// Temporarily replace global db for benchmark
+	oldDB := db
+	db = pool
+	defer func() { db = oldDB }()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, _, err := countVisit(context.Background(), col, "/urlstat/dashboard", "page")
+			_, _, err := countVisit(context.Background(), "localhost", "/urlstat/dashboard", "page")
 			if err != nil {
-				b.Fatalf("conection failed")
+				b.Fatalf("count failed: %v", err)
 			}
 		}
 	})
