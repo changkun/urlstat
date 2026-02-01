@@ -15,8 +15,7 @@ import (
 	"os/signal"
 	"time"
 
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var (
@@ -24,14 +23,11 @@ var (
 	public   embed.FS
 	publicFS fs.FS
 	l        *log.Logger
-	db       *mongo.Client
+	db       *pgxpool.Pool
 )
 
 const (
-	dbname = "urlstat"
-	// FIXME: This service currently depends on an external project for database.
-	// We can't afford instances to run two mongodb containers.
-	dburi = "mongodb://redirdb:27017"
+	defaultDBURI = "postgres://urlstat:urlstat@urlstatdb:5432/urlstat?sslmode=disable"
 )
 
 func init() {
@@ -44,22 +40,23 @@ func init() {
 	}
 
 	// initialize database connection
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	dbURI := os.Getenv("URLSTAT_DB")
+	if dbURI == "" {
+		dbURI = defaultDBURI
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	db, err = mongo.Connect(ctx, options.Client().ApplyURI(dburi))
+
+	db, err = pgxpool.New(ctx, dbURI)
 	if err != nil {
 		l.Fatalf("cannot connect to database: %v", err)
 	}
-	log.Printf("connected to database %v", dburi)
 
-	// ensure indexes on all existing collections
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
-		if err := ensureAllIndexes(ctx, db.Database(dbname)); err != nil {
-			l.Printf("failed to ensure indexes on startup: %v", err)
-		}
-	}()
+	if err := db.Ping(ctx); err != nil {
+		l.Fatalf("cannot ping database: %v", err)
+	}
+	log.Printf("connected to database %v", dbURI)
 }
 
 func main() {

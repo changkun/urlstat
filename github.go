@@ -64,9 +64,9 @@ func githubMode(w http.ResponseWriter, r *http.Request) (err error) {
 		cookieVid = c.Value
 	}
 
+	hostname := "github.com"
 	var vid string
-	col := db.Database(dbname).Collection("github.com")
-	vid, err = saveVisit(r.Context(), col, &visit{
+	vid, err = saveVisit(r.Context(), hostname, &visit{
 		VisitorID: cookieVid,
 		Path:      repoPath,
 		IP:        readIP(r),
@@ -81,7 +81,7 @@ func githubMode(w http.ResponseWriter, r *http.Request) (err error) {
 		w.Header().Set("Set-Cookie", urlstatCookieVid+"="+vid)
 	}
 
-	pv, _, err := countVisit(r.Context(), col, repoPath, "page")
+	pv, _, err := countVisit(r.Context(), hostname, repoPath, "page")
 	if err != nil {
 		err = fmt.Errorf("failed to count visit: %w", err)
 		return

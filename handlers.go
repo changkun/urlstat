@@ -15,8 +15,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type stat struct {
@@ -27,12 +25,13 @@ type stat struct {
 }
 
 type visit struct {
-	VisitorID string    `json:"visitor_id" bson:"visitor_id"`
-	Path      string    `json:"path"    bson:"path"`
-	IP        string    `json:"ip"      bson:"ip"`
-	UA        string    `json:"ua"      bson:"ua"`
-	Referer   string    `json:"referer" bson:"referer"`
-	Time      time.Time `json:"time"    bson:"time"`
+	Hostname  string    `db:"hostname"`
+	VisitorID string    `db:"visitor_id"`
+	Path      string    `db:"path"`
+	IP        string    `db:"ip"`
+	UA        string    `db:"ua"`
+	Referer   string    `db:"referer"`
+	Time      time.Time `db:"created_at"`
 }
 
 const urlstatCookieVid = "urlstat_vid"
@@ -91,8 +90,8 @@ func recording(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var vid string
-	col := db.Database(dbname).Collection(u.Host)
-	vid, err = saveVisit(r.Context(), col, &visit{
+	hostname := u.Host
+	vid, err = saveVisit(r.Context(), hostname, &visit{
 		VisitorID: cookieVid,
 		Path:      u.Path,
 		IP:        readIP(r),
@@ -113,7 +112,7 @@ func recording(w http.ResponseWriter, r *http.Request) {
 	for _, value := range r.URL.Query()["report"] {
 		for arg := range strings.SplitSeq(value, " ") {
 			var pv, uv int64
-			pv, uv, err = countVisit(r.Context(), col, u.Path, arg)
+			pv, uv, err = countVisit(r.Context(), hostname, u.Path, arg)
 			if err != nil {
 				err = fmt.Errorf("failed to count user view count: %w", err)
 				return
@@ -134,60 +133,50 @@ func recording(w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 }
 
+const insertSQL = `
+	INSERT INTO visits (hostname, visitor_id, path, ip, ua, referer, created_at)
+	VALUES ($1, $2, $3, $4, $5, $6, $7)`
+
 // saveVisit saves a visit to storage.
-func saveVisit(ctx context.Context, col *mongo.Collection, v *visit) (string, error) {
+func saveVisit(ctx context.Context, hostname string, v *visit) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
-
-	// Ensure indexes exist for this collection (handles new collections)
-	ensureIndexesOnce(col)
 
 	// if visitor ID does not present, then generate a new visitor ID.
 	if v.VisitorID == "" {
 		v.VisitorID = uuid.New().String()
 	}
 
-	_, err := col.InsertOne(ctx, v)
+	_, err := db.Exec(ctx, insertSQL, hostname, v.VisitorID, v.Path, v.IP, v.UA, v.Referer, v.Time)
 	if err != nil {
-		err = fmt.Errorf("failed to insert record: %w", err)
-		return "", err
+		return "", fmt.Errorf("failed to insert record: %w", err)
 	}
 	return v.VisitorID, nil
 }
 
-// countVisit reports the pv and uv of the given hostname collection and path location.
-func countVisit(ctx context.Context, col *mongo.Collection, path string, mode string) (pv int64, uv int64, err error) {
+const (
+	pageStatsSQL = `
+		SELECT COUNT(*) as pv, COUNT(DISTINCT ip) as uv
+		FROM visits WHERE hostname = $1 AND path = $2`
+	siteStatsSQL = `
+		SELECT COUNT(*) as pv, COUNT(DISTINCT ip) as uv
+		FROM visits WHERE hostname = $1`
+)
+
+// countVisit reports the pv and uv of the given hostname and path location.
+func countVisit(ctx context.Context, hostname string, path string, mode string) (pv int64, uv int64, err error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
 	switch mode {
 	case "site":
-		pv, err = col.CountDocuments(ctx, bson.M{})
-		if err != nil {
-			return
-		}
-
-		var result []any
-		result, err = col.Distinct(ctx, "ip", bson.D{})
-		if err != nil {
-			return
-		}
-		uv = int64(len(result))
+		err = db.QueryRow(ctx, siteStatsSQL, hostname).Scan(&pv, &uv)
 	case "page":
-		pv, err = col.CountDocuments(ctx, bson.M{"path": path})
-		if err != nil {
-			return
-		}
-
-		var result []any
-		result, err = col.Distinct(ctx, "ip", bson.D{
-			{Key: "path", Value: bson.D{{Key: "$eq", Value: path}}},
-		})
-		if err != nil {
-			return
-		}
-		uv = int64(len(result))
+		err = db.QueryRow(ctx, pageStatsSQL, hostname, path).Scan(&pv, &uv)
 	}
 
-	return
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to query stats: %w", err)
+	}
+	return pv, uv, nil
 }
