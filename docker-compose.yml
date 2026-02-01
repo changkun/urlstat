@@ -18,6 +18,25 @@ services:
       - traefik_proxy
       - internal
 
+  # One-off migration service: docker compose run --rm migrate
+  migrate:
+    build:
+      context: .
+      dockerfile: cmd/migrate/Dockerfile
+    command:
+      - "-mongo=mongodb://redirdb:27017"
+      - "-pg=postgres://urlstat:urlstat@urlstatdb:5432/urlstat?sslmode=disable"
+      - "-db=urlstat"
+      - "-batch=10000"
+    depends_on:
+      urlstatdb:
+        condition: service_healthy
+    networks:
+      - traefik_proxy
+      - internal
+    profiles:
+      - migration
+
   urlstatdb:
     image: postgres:16-alpine
     restart: always

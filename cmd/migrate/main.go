@@ -12,6 +12,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.mongodb.org/mongo-driver/bson"
@@ -124,9 +126,15 @@ func migrateCollection(ctx context.Context, col *mongo.Collection, pgPool *pgxpo
 			continue
 		}
 
+		// Generate UUID for empty visitor_id (PostgreSQL requires valid UUID)
+		visitorID := v.VisitorID
+		if visitorID == "" {
+			visitorID = uuid.New().String()
+		}
+
 		rows = append(rows, []any{
 			hostname,
-			v.VisitorID,
+			visitorID,
 			v.Path,
 			v.IP,
 			v.UA,
