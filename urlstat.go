@@ -63,6 +63,7 @@ func main() {
 	r := http.NewServeMux()
 	r.HandleFunc("/urlstat", recording)
 	r.HandleFunc("/urlstat/dashboard", dashboard)
+	r.HandleFunc("/urlstat/dashboard/api", dashboardAPI)
 	r.HandleFunc("/urlstat/cleanup", handleCleanup)
 	r.HandleFunc("/urlstat/client.js", func(w http.ResponseWriter, r *http.Request) {
 		f, _ := publicFS.Open("client.js")
