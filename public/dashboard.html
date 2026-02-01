@@ -200,6 +200,87 @@ tr:hover td {
   padding: 40px;
   color: var(--gray-6);
 }
+
+/* Spinner */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--gray-3);
+  border-top-color: var(--turq-med);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.spinner-large {
+  width: 32px;
+  height: 32px;
+  border-width: 3px;
+}
+
+/* Loading overlay for sections */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(32, 34, 36, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.loading-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Relative positioning for overlay containers */
+.summary-card,
+.chart-container,
+.table-container {
+  position: relative;
+}
+
+/* Disabled state for controls */
+select:disabled,
+.time-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.time-btn:disabled:hover {
+  border-color: var(--gray-3);
+  color: var(--gray-6);
+}
+
+/* Loading indicator in controls */
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  color: var(--turq-med);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.loading-indicator.visible {
+  opacity: 1;
+}
+
+/* Pulse animation for summary values when loading */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.summary-value.loading-pulse {
+  animation: pulse 1.5s ease-in-out infinite;
+}
 </style>
 </head>
 <body>
@@ -209,28 +290,32 @@ tr:hover td {
   <div class="controls">
     <div class="control-group">
       <span class="control-label">Host:</span>
-      <select id="hostname-select">
+      <select id="hostname-select" disabled>
         <option value="">Loading...</option>
       </select>
     </div>
     <div class="control-group">
       <span class="control-label">Period:</span>
       <div class="time-buttons">
-        <button class="time-btn" data-days="7">7d</button>
-        <button class="time-btn active" data-days="30">30d</button>
-        <button class="time-btn" data-days="90">90d</button>
-        <button class="time-btn" data-days="365">365d</button>
+        <button class="time-btn" data-days="7" disabled>7d</button>
+        <button class="time-btn active" data-days="30" disabled>30d</button>
+        <button class="time-btn" data-days="90" disabled>90d</button>
+        <button class="time-btn" data-days="365" disabled>365d</button>
       </div>
+    </div>
+    <div class="loading-indicator" id="loading-indicator">
+      <span class="spinner"></span>
+      <span>Loading...</span>
     </div>
   </div>
 
   <div class="summary">
     <div class="summary-card">
-      <div class="summary-value" id="total-pv">-</div>
+      <div class="summary-value loading-pulse" id="total-pv">-</div>
       <div class="summary-label">Page Views</div>
     </div>
     <div class="summary-card">
-      <div class="summary-value" id="total-uv">-</div>
+      <div class="summary-value loading-pulse" id="total-uv">-</div>
       <div class="summary-label">Unique Visitors</div>
     </div>
   </div>
@@ -239,6 +324,9 @@ tr:hover td {
     <h2 class="chart-title">Traffic Trends</h2>
     <div class="chart-wrapper">
       <canvas id="trend-chart"></canvas>
+    </div>
+    <div class="loading-overlay visible" id="chart-loading">
+      <span class="spinner spinner-large"></span>
     </div>
   </div>
 
@@ -252,7 +340,7 @@ tr:hover td {
         </tr>
       </thead>
       <tbody id="paths-table">
-        <tr><td colspan="2" class="loading">Loading...</td></tr>
+        <tr><td colspan="2" class="loading"><span class="spinner"></span> Loading...</td></tr>
       </tbody>
     </table>
   </div>
@@ -263,12 +351,38 @@ tr:hover td {
   let chart = null;
   let currentDays = 30;
   let currentHostname = '';
+  let isLoading = false;
 
   const hostnameSelect = document.getElementById('hostname-select');
   const timeButtons = document.querySelectorAll('.time-btn');
   const totalPvEl = document.getElementById('total-pv');
   const totalUvEl = document.getElementById('total-uv');
   const pathsTable = document.getElementById('paths-table');
+  const loadingIndicator = document.getElementById('loading-indicator');
+  const chartLoading = document.getElementById('chart-loading');
+
+  function setLoading(loading) {
+    isLoading = loading;
+
+    // Toggle loading indicator in controls
+    loadingIndicator.classList.toggle('visible', loading);
+
+    // Disable/enable controls
+    hostnameSelect.disabled = loading;
+    timeButtons.forEach(btn => btn.disabled = loading);
+
+    // Toggle pulse animation on summary values
+    totalPvEl.classList.toggle('loading-pulse', loading);
+    totalUvEl.classList.toggle('loading-pulse', loading);
+
+    // Toggle chart loading overlay
+    chartLoading.classList.toggle('visible', loading);
+
+    // Update table with loading state
+    if (loading) {
+      pathsTable.innerHTML = '<tr><td colspan="2" class="loading"><span class="spinner"></span> Loading...</td></tr>';
+    }
+  }
 
   function formatNumber(n) {
     return n.toLocaleString();
@@ -424,26 +538,36 @@ tr:hover td {
   }
 
   async function refresh() {
-    const data = await fetchData();
-    if (!data) {
-      pathsTable.innerHTML = '<tr><td colspan="2" class="empty">Error loading data</td></tr>';
-      return;
-    }
+    if (isLoading) return;
 
-    updateHostnameSelect(data);
-    updateSummary(data);
-    updateChart(data);
-    updateTable(data);
+    setLoading(true);
+
+    try {
+      const data = await fetchData();
+      if (!data) {
+        pathsTable.innerHTML = '<tr><td colspan="2" class="empty">Error loading data</td></tr>';
+        return;
+      }
+
+      updateHostnameSelect(data);
+      updateSummary(data);
+      updateChart(data);
+      updateTable(data);
+    } finally {
+      setLoading(false);
+    }
   }
 
   // Event listeners
   hostnameSelect.addEventListener('change', function() {
+    if (isLoading) return;
     currentHostname = this.value;
     refresh();
   });
 
   timeButtons.forEach(btn => {
     btn.addEventListener('click', function() {
+      if (isLoading) return;
       timeButtons.forEach(b => b.classList.remove('active'));
       this.classList.add('active');
       currentDays = parseInt(this.dataset.days);
