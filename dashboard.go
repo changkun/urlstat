@@ -28,6 +28,14 @@ func dashboard(w http.ResponseWriter, r *http.Request) {
 	}()
 	wait := 60 * time.Second
 
+	// Parse days parameter (default: 30 days, 0 = all time)
+	days := 30
+	if d := r.URL.Query().Get("days"); d != "" {
+		if _, err := fmt.Sscanf(d, "%d", &days); err != nil {
+			days = 30
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), wait)
 	defer cancel()
 
@@ -60,44 +68,47 @@ func dashboard(w http.ResponseWriter, r *http.Request) {
 			}()
 
 			col := db.Database(dbname).Collection(hostname)
-			// mongodb query:
-			//
-			// db.getCollection('golang.design').aggregate([
-			// {"$group": {
-			//     _id: {path: "$path", ip:"$ip"},
-			//     count: {"$sum": 1}}
-			// },
-			// {"$group": {
-			//     _id: "$_id.path",
-			//     uv: {$sum: 1},
-			//     pv: {$sum: "$count"}}
-			// },
-			// {"$sort": {'pv': -1, 'uv': -1}}], { allowDiskUse: true })
-			//
-			// TODO: currently golang.design is the slowest query and should
-			// be further optimized. Maybe batched queries?
-			p := mongo.Pipeline{
-				bson.D{
+
+			// Build pipeline with optional time filter
+			p := mongo.Pipeline{}
+
+			// Add $match stage if filtering by time (days > 0)
+			if days > 0 {
+				since := time.Now().UTC().AddDate(0, 0, -days)
+				p = append(p, bson.D{
 					primitive.E{
-						Key: "$group", Value: bson.M{
-							"_id":   bson.M{"path": "$path", "ip": "$ip"},
-							"count": bson.M{"$sum": 1},
+						Key: "$match", Value: bson.M{
+							"time": bson.M{"$gte": since},
 						},
 					},
-				},
-				bson.D{
-					primitive.E{
-						Key: "$group", Value: bson.M{
-							"_id": "$_id.path",
-							"uv":  bson.M{"$sum": 1},
-							"pv":  bson.M{"$sum": "$count"},
-						},
-					},
-				},
-				bson.D{
-					primitive.E{Key: "$sort", Value: bson.M{"pv": -1, "uv": -1}},
-				},
+				})
 			}
+
+			// Group by {path, ip} to count visits per unique visitor per path
+			p = append(p, bson.D{
+				primitive.E{
+					Key: "$group", Value: bson.M{
+						"_id":   bson.M{"path": "$path", "ip": "$ip"},
+						"count": bson.M{"$sum": 1},
+					},
+				},
+			})
+
+			// Group by path to get UV (unique IPs) and PV (total visits)
+			p = append(p, bson.D{
+				primitive.E{
+					Key: "$group", Value: bson.M{
+						"_id": "$_id.path",
+						"uv":  bson.M{"$sum": 1},
+						"pv":  bson.M{"$sum": "$count"},
+					},
+				},
+			})
+
+			// Sort by PV descending
+			p = append(p, bson.D{
+				primitive.E{Key: "$sort", Value: bson.M{"pv": -1, "uv": -1}},
+			})
 			opts := options.Aggregate().SetMaxTime(wait).SetAllowDiskUse(true)
 			var cur *mongo.Cursor
 			cur, err = col.Aggregate(ctx, p, opts)

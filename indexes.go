@@ -23,6 +23,9 @@ var indexDefinitions = []mongo.IndexModel{
 	{
 		Keys: bson.D{{Key: "ip", Value: 1}},
 	},
+	{
+		Keys: bson.D{{Key: "time", Value: -1}},
+	},
 }
 
 // ensureIndexes creates the required indexes on a single collection.
