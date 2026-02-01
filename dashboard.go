@@ -29,10 +29,10 @@ func handleCleanup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/plain")
-	fmt.Fprintf(w, "Cleanup complete. Deleted %d single-visit entries.\n", deleted)
+	fmt.Fprintf(w, "Cleanup complete. Deleted %d low-visit entries (paths with <10 visits).\n", deleted)
 }
 
-// cleanup removes entries with only 1 visit (likely bots or noise).
+// cleanup removes entries with fewer than 10 visits (likely bots or noise).
 // It returns the total number of deleted documents across all collections.
 func cleanup(ctx context.Context) (int64, error) {
 	cols, err := db.Database(dbname).ListCollectionNames(ctx, bson.D{})
@@ -44,14 +44,14 @@ func cleanup(ctx context.Context) (int64, error) {
 	for _, hostname := range cols {
 		col := db.Database(dbname).Collection(hostname)
 
-		// Find paths with only 1 visit
+		// Find paths with fewer than 10 visits
 		p := mongo.Pipeline{
 			bson.D{{Key: "$group", Value: bson.M{
 				"_id":   "$path",
 				"count": bson.M{"$sum": 1},
 			}}},
 			bson.D{{Key: "$match", Value: bson.M{
-				"count": 1,
+				"count": bson.M{"$lt": 10},
 			}}},
 		}
 
@@ -62,7 +62,8 @@ func cleanup(ctx context.Context) (int64, error) {
 		}
 
 		var results []struct {
-			Path string `bson:"_id"`
+			Path  string `bson:"_id"`
+			Count int64  `bson:"count"`
 		}
 		if err := cur.All(ctx, &results); err != nil {
 			log.Printf("cleanup: failed to decode results for %s: %v", hostname, err)
@@ -77,7 +78,7 @@ func cleanup(ctx context.Context) (int64, error) {
 		paths := make([]string, len(results))
 		for i, r := range results {
 			paths[i] = r.Path
-			log.Printf("cleanup: removing single-visit path from %s: %s", hostname, r.Path)
+			log.Printf("cleanup: removing low-visit path from %s: %s (count: %d)", hostname, r.Path, r.Count)
 		}
 
 		// Delete documents with these paths
@@ -88,7 +89,7 @@ func cleanup(ctx context.Context) (int64, error) {
 		}
 
 		if res.DeletedCount > 0 {
-			log.Printf("cleanup: deleted %d single-visit entries from %s", res.DeletedCount, hostname)
+			log.Printf("cleanup: deleted %d low-visit entries from %s", res.DeletedCount, hostname)
 			totalDeleted += res.DeletedCount
 		}
 	}
