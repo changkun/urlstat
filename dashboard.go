@@ -154,27 +154,32 @@ func dashboard(w http.ResponseWriter, r *http.Request) {
 			log.Printf("DEBUG %s: estimated doc count = %d", hostname, docCount)
 
 			// Check indexes
-			indexCursor, _ := col.Indexes().List(ctx)
-			var indexes []bson.M
-			indexCursor.All(ctx, &indexes)
-			for _, idx := range indexes {
-				log.Printf("DEBUG %s: index = %v", hostname, idx["key"])
+			if indexCursor, err := col.Indexes().List(ctx); err == nil && indexCursor != nil {
+				var indexes []bson.M
+				if err := indexCursor.All(ctx, &indexes); err == nil {
+					for _, idx := range indexes {
+						log.Printf("DEBUG %s: index = %v", hostname, idx["key"])
+					}
+				}
 			}
 
 			// Build pipeline with optional time filter
 			p := mongo.Pipeline{}
 
-			// Add $match stage if filtering by time (days > 0)
-			if days > 0 {
-				since := time.Now().UTC().AddDate(0, 0, -days)
-				p = append(p, bson.D{
-					primitive.E{
-						Key: "$match", Value: bson.M{
-							"time": bson.M{"$gte": since},
-						},
-					},
-				})
+			// Always filter by time - default 30 days, max 365 days for performance
+			filterDays := days
+			if filterDays <= 0 || filterDays > 365 {
+				filterDays = 365 // Cap at 1 year to prevent runaway queries
 			}
+			since := time.Now().UTC().AddDate(0, 0, -filterDays)
+			p = append(p, bson.D{
+				primitive.E{
+					Key: "$match", Value: bson.M{
+						"time": bson.M{"$gte": since},
+					},
+				},
+			})
+			log.Printf("DEBUG %s: filtering since %v (days=%d)", hostname, since, filterDays)
 
 			// Group by {path, ip} to count visits per unique visitor per path
 			p = append(p, bson.D{
