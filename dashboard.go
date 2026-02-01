@@ -149,6 +149,18 @@ func dashboard(w http.ResponseWriter, r *http.Request) {
 
 			col := db.Database(dbname).Collection(hostname)
 
+			// Debug: log document count and index info
+			docCount, _ := col.EstimatedDocumentCount(ctx)
+			log.Printf("DEBUG %s: estimated doc count = %d", hostname, docCount)
+
+			// Check indexes
+			indexCursor, _ := col.Indexes().List(ctx)
+			var indexes []bson.M
+			indexCursor.All(ctx, &indexes)
+			for _, idx := range indexes {
+				log.Printf("DEBUG %s: index = %v", hostname, idx["key"])
+			}
+
 			// Build pipeline with optional time filter
 			p := mongo.Pipeline{}
 
@@ -190,18 +202,24 @@ func dashboard(w http.ResponseWriter, r *http.Request) {
 				primitive.E{Key: "$sort", Value: bson.M{"pv": -1, "uv": -1}},
 			})
 			opts := options.Aggregate().SetMaxTime(wait).SetAllowDiskUse(true)
+
+			aggStart := time.Now()
 			var cur *mongo.Cursor
 			cur, err = col.Aggregate(ctx, p, opts)
 			if err != nil {
 				err = fmt.Errorf("failed to count visit: %w", err)
 				return err
 			}
+			log.Printf("DEBUG %s: aggregate() took %v", hostname, time.Since(aggStart))
+
+			cursorStart := time.Now()
 			var results []record
 			err = cur.All(ctx, &results)
 			if err != nil {
 				err = fmt.Errorf("failed to count visit: %w", err)
 				return err
 			}
+			log.Printf("DEBUG %s: cursor.All() took %v, got %d results", hostname, time.Since(cursorStart), len(results))
 
 			mu.Lock()
 			all = append(all, records{
