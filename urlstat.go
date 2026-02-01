@@ -51,6 +51,15 @@ func init() {
 		l.Fatalf("cannot connect to database: %v", err)
 	}
 	log.Printf("connected to database %v", dburi)
+
+	// ensure indexes on all existing collections
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		if err := ensureAllIndexes(ctx, db.Database(dbname)); err != nil {
+			l.Printf("failed to ensure indexes on startup: %v", err)
+		}
+	}()
 }
 
 func main() {

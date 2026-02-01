@@ -139,6 +139,9 @@ func saveVisit(ctx context.Context, col *mongo.Collection, v *visit) (string, er
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
+	// Ensure indexes exist for this collection (handles new collections)
+	ensureIndexesOnce(col)
+
 	// if visitor ID does not present, then generate a new visitor ID.
 	if v.VisitorID == "" {
 		v.VisitorID = uuid.New().String()
