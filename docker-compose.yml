@@ -9,34 +9,21 @@ services:
     deploy:
       replicas: 1
     environment:
-      - URLSTAT_DB=postgres://urlstat:urlstat@urlstatdb:5432/urlstat?sslmode=disable
-    depends_on:
-      urlstatdb:
-        condition: service_healthy
+      - URLSTAT_DB=postgres://urlstat:urlstat@postgres:5432/urlstat?sslmode=disable
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - traefik_proxy
-      - internal
-
-  urlstatdb:
-    image: postgres:16-alpine
-    restart: always
-    environment:
-      POSTGRES_USER: urlstat
-      POSTGRES_PASSWORD: urlstat
-      POSTGRES_DB: urlstat
-    volumes:
-      - ./data/postgres:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U urlstat"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - internal
+      - postgres_internal
 
 networks:
   traefik_proxy:
     external: true
-  internal:
-    driver: bridge
+  # Owned by changkun/proxy, which runs the shared database instance.
+  # depends_on cannot reach across compose projects, so ordering against
+  # the database is handled by restart: always rather than declaratively.
+  postgres_internal:
+    external: true
