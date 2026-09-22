@@ -55,14 +55,6 @@ CREATE TABLE visits (
 
 Indexes are defined in `migrations/001_initial.sql`.
 
-## Migration from MongoDB
-
-Use the migration tool to copy data from MongoDB to PostgreSQL:
-
-```bash
-go run ./cmd/migrate -mongo="mongodb://localhost:27017" -pg="postgres://urlstat:urlstat@localhost:5432/urlstat"
-```
-
 ## Deployment
 
 Docker-based with Alpine Linux. Uses `URLSTAT_DB` environment variable for PostgreSQL connection (defaults to `postgres://urlstat:urlstat@urlstatdb:5432/urlstat?sslmode=disable`). Uses `URLSTAT_ADDR` environment variable (defaults to `0.0.0.0:80`).
