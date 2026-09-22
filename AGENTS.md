@@ -1,8 +1,4 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Overview
+# urlstat
 
 urlstat is a lightweight page view (PV) and unique visitor (UV) statistics tracking service with two modes:
 - **Plain Mode**: JavaScript-based tracking for websites
