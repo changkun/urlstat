@@ -12,7 +12,7 @@
 :root {
   --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
   --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11, 11, 11, 0.1); --wash: rgba(11, 11, 11, 0.045);
-  --pv: #2a78d6; --uv: #eb6834; --up: #006300; --down: #b3261e;
+  --pv: #2a78d6; --uv: #eb6834; --up: #006300; --down: #b3261e; --danger: #b3261e;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -27,11 +27,14 @@ body { margin: 0; background: var(--page); color: var(--ink); font: 13px/1.45 sy
 a { color: inherit; }
 button, select, input { font: inherit; color: inherit; }
 main { max-width: 1160px; margin: 0 auto; padding: 14px 16px 28px; }
+[hidden] { display: none !important; }
 
 .top { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
 .top h1 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
 .top p { margin: 0; color: var(--ink-2); }
-.top a { margin-left: auto; color: var(--ink-2); text-decoration: none; }
+.top .who { margin-left: auto; display: flex; align-items: baseline; gap: 12px; color: var(--ink-2); min-width: 0; }
+.top .who span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.top a { color: var(--ink-2); text-decoration: none; }
 .top a:hover { color: var(--ink); text-decoration: underline; }
 
 /* One filter row; everything below it shows the same slice. */
@@ -42,6 +45,9 @@ main { max-width: 1160px; margin: 0 auto; padding: 14px 16px 28px; }
 .seg button + button { border-left: 1px solid var(--border); }
 .seg button:hover { background: var(--wash); }
 .seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.chip { display: inline-flex; align-items: center; height: 28px; padding: 0 2px 0 10px; border-radius: 6px; background: var(--ink); color: var(--surface); white-space: nowrap; }
+.chip button { border: 0; background: none; color: inherit; cursor: pointer; padding: 0 8px; font-size: 16px; line-height: 1; opacity: 0.75; }
+.chip button:hover { opacity: 1; }
 .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; color: var(--ink-2); min-width: 0; }
 .crumbs button { border: 0; background: none; padding: 3px 5px; border-radius: 4px; cursor: pointer; color: var(--ink-2); }
 .crumbs button:hover { background: var(--wash); color: var(--ink); }
@@ -70,10 +76,14 @@ main { max-width: 1160px; margin: 0 auto; padding: 14px 16px 28px; }
 .legend i { display: inline-block; width: 14px; height: 2px; border-radius: 1px; vertical-align: middle; margin-right: 5px; }
 .link { border: 0; background: none; padding: 2px 0; cursor: pointer; white-space: nowrap; color: var(--ink-2); text-decoration: underline; text-underline-offset: 2px; }
 .link:hover { color: var(--ink); }
+.hint { color: var(--muted); font-size: 12px; }
 
 .chart { margin-bottom: 10px; }
 .plot { position: relative; padding: 4px 8px 6px; }
-.plot svg { display: block; width: 100%; height: 232px; overflow: visible; outline-offset: -2px; }
+/* A drag across the chart selects days; a vertical drag still scrolls the page. */
+.plot svg { display: block; width: 100%; height: 232px; overflow: visible; cursor: crosshair; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+/* The reading hairline shows where the focus is, so no ring around the chart. */
+#svg:focus { outline: none; }
 .plot text { font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
 .tip { position: absolute; top: 8px; pointer-events: none; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12); white-space: nowrap; display: none; }
 .tip .day { color: var(--ink-2); margin-bottom: 2px; }
@@ -91,6 +101,8 @@ th { font-weight: 500; color: var(--ink-2); font-size: 12px; border-bottom: 1px 
 tbody tr + tr td { border-top: 1px solid var(--grid); }
 tbody tr:hover td { background: var(--wash); }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; width: 76px; }
+td.sel, th.sel { width: 36px; overflow: visible; }
+td.sel input, th.sel input { margin: 0; vertical-align: middle; }
 td.bar { width: 22%; }
 td.bar i { display: block; height: 6px; min-width: 2px; border-radius: 0 3px 3px 0; background: var(--pv); }
 th button { border: 0; background: none; padding: 0; cursor: pointer; color: inherit; font-weight: inherit; }
@@ -110,13 +122,32 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
 .scroll { max-height: 232px; overflow: auto; margin-top: 4px; }
 .foot { margin-top: 12px; color: var(--ink-2); font-size: 12px; }
 
+/* Cleaning up, for whoever is signed in and allowed to. */
+.btn { height: 26px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); cursor: pointer; white-space: nowrap; }
+.btn:hover:not(:disabled) { background: var(--wash); }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn.danger { background: var(--danger); border-color: transparent; color: #fff; }
+.btn.danger:hover:not(:disabled) { background: var(--danger); filter: brightness(1.12); }
+.tools { display: grid; gap: 6px; padding: 8px 14px; margin-top: 8px; border-top: 1px solid var(--grid); border-bottom: 1px solid var(--grid); background: var(--wash); color: var(--ink-2); }
+.tools > div { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.tools input { width: 62px; height: 26px; padding: 0 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+dialog { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--ink); padding: 16px 18px; width: min(460px, calc(100vw - 32px)); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25); }
+dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+dialog h3 { margin: 0 0 6px; font-size: 15px; font-weight: 650; }
+dialog p { margin: 0; color: var(--ink-2); }
+dialog ul { margin: 10px 0 0; padding: 0; list-style: none; max-height: 190px; overflow: auto; border-top: 1px solid var(--grid); }
+dialog li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+dialog li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+dialog li.rest { color: var(--ink-2); }
+dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
 @media (max-width: 820px) {
   .tiles { grid-template-columns: repeat(2, 1fr); }
   .cols { grid-template-columns: minmax(0, 1fr); }
   .top p { display: none; }
   td.bar, th.bar { display: none; }
   .tile .note { white-space: normal; }
-  #pages td:first-child { white-space: normal; overflow-wrap: anywhere; }
+  #pages td:nth-last-child(4) { white-space: normal; overflow-wrap: anywhere; }
 }
 </style>
 </head>
@@ -125,7 +156,7 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
   <header class="top">
     <h1>urlstat</h1>
     <p>Page views and visitors</p>
-    <a href="https://github.com/changkun/urlstat">github.com/changkun/urlstat</a>
+    <div class="who"><span id="who"></span><a href="https://github.com/changkun/urlstat">GitHub</a></div>
   </header>
 
   <div class="filters">
@@ -133,6 +164,7 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
     <div class="seg" id="days" role="group" aria-label="Period">
       <button data-days="7">7 days</button><button data-days="30">30 days</button><button data-days="90">90 days</button><button data-days="365">1 year</button>
     </div>
+    <span id="range"></span>
     <nav class="crumbs" id="crumbs" aria-label="Path"></nav>
     <span class="status" id="status" role="status">Loading…</span>
   </div>
@@ -147,12 +179,13 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
   <figure class="card chart live" style="margin-left:0;margin-right:0;margin-top:0">
     <div class="head">
       <h2>Daily views and visitors</h2>
+      <span class="hint" id="zoom"></span>
       <div class="right">
         <div class="legend" id="legend"><span><i style="background:var(--pv)"></i>Page views</span><span><i style="background:var(--uv)"></i>Visitors</span></div>
         <button class="link" id="view" aria-pressed="false">Show as table</button>
       </div>
     </div>
-    <div class="plot" id="plot"><svg id="svg" role="img" tabindex="0" aria-label="Daily page views and visitors. Use the arrow keys to read each day, or show the table."></svg><div class="tip" id="tip"></div></div>
+    <div class="plot" id="plot"><svg id="svg" role="img" tabindex="0" aria-label="Daily page views and visitors. Use the arrow keys to read each day, or show the table. Drag across days to show only those."></svg><div class="tip" id="tip"></div></div>
     <div class="scroll" id="daily" hidden></div>
   </figure>
 
@@ -163,7 +196,14 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
     </section>
     <section class="card" aria-label="Pages">
       <div class="head"><h2>Pages</h2><span class="count" id="page-count"></span>
-        <div class="right"><input class="search" id="q" type="search" placeholder="Filter pages" aria-label="Filter pages"></div>
+        <div class="right">
+          <button class="link" id="clean" aria-pressed="false" hidden>Clean up</button>
+          <input class="search" id="q" type="search" placeholder="Filter pages" aria-label="Filter pages">
+        </div>
+      </div>
+      <div class="tools" id="tools" hidden>
+        <div><span id="sel-count">No page selected</span><button class="btn" id="del-selected" disabled>Delete their visits…</button></div>
+        <div><span>Every page with fewer than</span><input id="below" type="number" min="2" max="1000" value="10" aria-label="Visits"><span>visits ever</span><button class="btn" id="del-below">Delete those…</button></div>
       </div>
       <div id="pages"></div>
     </section>
@@ -172,13 +212,28 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
   <p class="foot">Visitors are distinct IP addresses over the period. Days are in UTC, and today is still being counted. Figures can be a few minutes behind.</p>
 </main>
 
+<dialog id="confirm" aria-labelledby="c-title">
+  <h3 id="c-title"></h3>
+  <p id="c-text"></p>
+  <ul id="c-list"></ul>
+  <div class="actions"><button class="btn" id="c-cancel">Cancel</button><button class="btn danger" id="c-ok">Delete</button></div>
+</dialog>
+
+<!-- The changkun.de login, shared with the main site and the blog. Where
+     this host does not serve it, the page simply has no sign-in. -->
+<script src="/login-sdk.js"></script>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
   const fmt = new Intl.NumberFormat('en-US');
   const PERIODS = { 7: '7 days', 30: '30 days', 90: '90 days', 365: 'year' };
-  const state = { host: '', days: 30, prefix: '', sort: 'pv', q: '', all: false, allSections: false, table: false };
-  let data = null, series = [], seq = 0, hover = -1;
+  const DAY = /^\d{4}-\d\d-\d\d$/;
+  const auth = window.latereAuth;
+  const state = {
+    host: '', days: 30, from: '', to: '', prefix: '', sort: 'pv', q: '', all: false, allSections: false, table: false,
+    admin: false, who: '', denied: false, cleaning: false, selected: new Set(),
+  };
+  let data = null, series = [], seq = 0, hover = -1, drag = null;
 
   // Text from the database (hosts, paths) only ever enters the page as text.
   function el(tag, attrs, ...kids) {
@@ -194,12 +249,15 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
     const p = new URLSearchParams(location.search);
     state.host = p.get('host') || '';
     state.days = PERIODS[+p.get('days')] ? +p.get('days') : 30;
+    const from = p.get('from') || '', to = p.get('to') || '';
+    [state.from, state.to] = DAY.test(from) && DAY.test(to) ? [from, to] : ['', ''];
     state.prefix = p.get('prefix') || '';
   }
   function writeURL(push) {
     const p = new URLSearchParams();
     if (state.host) p.set('host', state.host);
-    if (state.days !== 30) p.set('days', state.days);
+    if (state.from) { p.set('from', state.from); p.set('to', state.to); }
+    else if (state.days !== 30) p.set('days', state.days);
     if (state.prefix) p.set('prefix', state.prefix);
     const url = location.pathname + (p.toString() ? '?' + p : '');
     if (url !== location.pathname + location.search) history[push ? 'pushState' : 'replaceState'](null, '', url);
@@ -209,7 +267,8 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
     const mine = ++seq;
     $('app').classList.add('busy');
     if (!data) status('Loading…');
-    const p = new URLSearchParams({ days: state.days });
+    const p = new URLSearchParams();
+    if (state.from) { p.set('from', state.from); p.set('to', state.to); } else p.set('days', state.days);
     if (state.host) p.set('hostname', state.host);
     if (state.prefix) p.set('prefix', state.prefix);
     try {
@@ -217,8 +276,11 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
       if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
       const d = await r.json();
       if (mine !== seq) return;
+      if (data && data.hostname !== d.hostname) state.selected.clear();
       data = d;
-      state.host = d.hostname; state.prefix = d.prefix || ''; state.all = false; state.allSections = false;
+      state.host = d.hostname; state.prefix = d.prefix || '';
+      [state.from, state.to] = d.custom ? [d.from, d.to] : ['', ''];
+      state.all = false; state.allSections = false;
       writeURL(push);
       render();
       status('');
@@ -237,12 +299,23 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
     renderFilters(); renderTiles(); fillDays(); renderChart(); renderDaily(); renderSections(); renderPages();
   }
 
+  const utc = (key) => new Date(key + 'T00:00:00Z');
+  const dayLabel = (d, year) => d.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', ...(year ? { year: 'numeric' } : {}) });
+  // The period in words, as in "vs previous 30 days".
+  const periodName = () => data.custom ? (data.days === 1 ? 'day' : data.days + ' days') : PERIODS[data.days] || data.days + ' days';
+
   function renderFilters() {
     const sel = $('host');
     sel.replaceChildren(...data.hosts.map((h) => el('option', { value: h.hostname, text: h.hostname + (h.pv ? '  ·  ' + fmt.format(h.pv) : '  ·  no visits') })));
     if (!data.hosts.some((h) => h.hostname === state.host) && state.host) sel.prepend(el('option', { value: state.host, text: state.host }));
     sel.value = state.host;
-    for (const b of $('days').children) b.setAttribute('aria-pressed', String(+b.dataset.days === state.days));
+    for (const b of $('days').children) b.setAttribute('aria-pressed', String(!data.custom && +b.dataset.days === state.days));
+
+    // A range chosen on the chart, and the way back out of it.
+    const back = () => go({ from: '', to: '' });
+    const span = data.from === data.to ? dayLabel(utc(data.from), true) : dayLabel(utc(data.from), data.from.slice(0, 4) !== data.to.slice(0, 4)) + ' – ' + dayLabel(utc(data.to), true);
+    $('range').replaceChildren(...(data.custom ? [el('span', { class: 'chip' }, span, el('button', { 'aria-label': 'Back to the last ' + PERIODS[state.days], title: 'Back to the last ' + PERIODS[state.days], text: '×', onclick: back }))] : []));
+    $('zoom').replaceChildren(data.custom ? el('button', { class: 'link', text: 'Zoom out', onclick: back }) : 'Drag across days to zoom in');
 
     // The path being looked at, each part a way back up.
     const parts = state.prefix.split('/').filter(Boolean);
@@ -259,7 +332,7 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
   }
 
   function delta(cur, prev) {
-    const period = 'previous ' + PERIODS[state.days];
+    const period = 'previous ' + periodName();
     if (!prev) return el('span', { text: cur ? 'none in the ' + period : ' ' });
     const pct = (cur - prev) / prev * 100;
     const flat = Math.abs(pct) < 0.5;
@@ -274,21 +347,20 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
     $('t-pages').textContent = fmt.format(s.pages);
     $('n-pv').replaceChildren(delta(s.total_pv, s.prev_pv));
     $('n-uv').replaceChildren(delta(s.total_uv, s.prev_uv));
-    $('n-per').textContent = s.prev_uv ? (s.prev_pv / s.prev_uv).toFixed(2) + ' in the previous ' + PERIODS[state.days] : ' ';
+    $('n-per').textContent = s.prev_uv ? (s.prev_pv / s.prev_uv).toFixed(2) + ' in the previous ' + periodName() : ' ';
     $('n-pages').textContent = state.prefix ? 'under ' + state.prefix : 'on ' + state.host;
   }
 
   // Every day of the period, including the days nobody came.
   function fillDays() {
     const by = new Map(data.timeseries.map((t) => [t.date, t]));
-    const today = new Date(); today.setUTCHours(0, 0, 0, 0);
+    const today = new Date().toISOString().slice(0, 10);
     series = [];
-    for (let i = state.days - 1; i >= 0; i--) {
-      const d = new Date(today.getTime() - i * 864e5), key = d.toISOString().slice(0, 10), t = by.get(key);
-      series.push({ date: d, key, pv: t ? t.pv : 0, uv: t ? t.uv : 0, today: i === 0 });
+    for (let t = utc(data.from).getTime(), end = utc(data.to).getTime(); t <= end; t += 864e5) {
+      const d = new Date(t), key = d.toISOString().slice(0, 10), v = by.get(key);
+      series.push({ date: d, key, pv: v ? v.pv : 0, uv: v ? v.uv : 0, today: key === today });
     }
   }
-  const dayLabel = (d, year) => d.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', ...(year ? { year: 'numeric' } : {}) });
 
   // A round axis maximum and step for about four gridlines.
   function axis(max) {
@@ -302,7 +374,7 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
   function renderChart() {
     const svg = $('svg'), W = svg.clientWidth || 800, H = 232;
     const total = series.reduce((a, s) => a + s.pv, 0);
-    $('plot').hidden = state.table; $('legend').hidden = state.table;
+    $('plot').hidden = state.table; $('legend').hidden = state.table; $('zoom').hidden = state.table;
     if (state.table) return;
     if (!total) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" style="font-size:13px">No visits in this period.</text>`; geom = null; return; }
     const { top, step } = axis(Math.max(...series.map((s) => s.pv)));
@@ -316,18 +388,25 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
       g += `<text x="${m.l - 7}" y="${y(v) + 3.5}" text-anchor="end">${fmt.format(v)}</text>`;
     }
     // Date labels: month starts for a long period, else evenly spaced days
-    // counted back from today.
+    // counted back from the last one.
     const ticks = [];
     if (n > 120) series.forEach((s, i) => { if (s.date.getUTCDate() === 1 && (pw > 520 || s.date.getUTCMonth() % 2 === 0)) ticks.push([i, s.date.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short' }) + (s.date.getUTCMonth() === 0 ? ' ' + s.date.getUTCFullYear() : '')]); });
     else { const every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(pw / 80)))); for (let i = n - 1; i >= 0; i -= every) ticks.push([i, dayLabel(series[i].date)]); }
     for (const [i, label] of ticks) {
-      const anchor = x(i) > W - m.r - 24 ? 'end' : x(i) < m.l + 24 ? 'start' : 'middle';
+      const anchor = n === 1 ? 'middle' : x(i) > W - m.r - 24 ? 'end' : x(i) < m.l + 24 ? 'start' : 'middle';
       g += `<text x="${x(i)}" y="${H - 5}" text-anchor="${anchor}">${label}</text>`;
     }
-    const line = (k) => series.map((s, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(s[k]).toFixed(1)}`).join('');
-    g += `<path d="${line('pv')}L${x(n - 1).toFixed(1)},${y(0)}L${x(0).toFixed(1)},${y(0)}Z" fill="var(--pv)" opacity="0.1"/>`;
-    g += `<path d="${line('pv')}" fill="none" stroke="var(--pv)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
-    g += `<path d="${line('uv')}" fill="none" stroke="var(--uv)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    // The days being selected by a drag.
+    g += `<rect id="band" y="${m.t}" height="${ph}" fill="var(--pv)" opacity="0.14" visibility="hidden"/>`;
+    if (n === 1) {
+      // One day is two points, not two lines.
+      g += `<circle cx="${x(0)}" cy="${y(series[0].pv)}" r="4" fill="var(--pv)" stroke="var(--surface)" stroke-width="2"/><circle cx="${x(0)}" cy="${y(series[0].uv)}" r="4" fill="var(--uv)" stroke="var(--surface)" stroke-width="2"/>`;
+    } else {
+      const line = (k) => series.map((s, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(s[k]).toFixed(1)}`).join('');
+      g += `<path d="${line('pv')}L${x(n - 1).toFixed(1)},${y(0)}L${x(0).toFixed(1)},${y(0)}Z" fill="var(--pv)" opacity="0.1"/>`;
+      g += `<path d="${line('pv')}" fill="none" stroke="var(--pv)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+      g += `<path d="${line('uv')}" fill="none" stroke="var(--uv)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    }
     g += `<g id="cross" visibility="hidden"><line id="cx" y1="${m.t}" y2="${m.t + ph}" stroke="var(--axis)"/><circle id="c-pv" r="4" fill="var(--pv)" stroke="var(--surface)" stroke-width="2"/><circle id="c-uv" r="4" fill="var(--uv)" stroke="var(--surface)" stroke-width="2"/></g>`;
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.innerHTML = g;
@@ -335,24 +414,33 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
   }
 
   // The reading at day i: a hairline, a dot on each line, and the numbers.
+  // During a drag it reads the days selected so far.
   function point(i) {
     hover = i;
-    const cross = document.getElementById('cross'), tip = $('tip');
+    const cross = document.getElementById('cross'), band = document.getElementById('band'), tip = $('tip');
     if (!geom || !cross) { tip.style.display = 'none'; return; }
-    if (i < 0) { cross.setAttribute('visibility', 'hidden'); tip.style.display = 'none'; return; }
+    if (i < 0) { cross.setAttribute('visibility', 'hidden'); band.setAttribute('visibility', 'hidden'); tip.style.display = 'none'; return; }
     const s = series[i], { x, y, W } = geom;
     cross.setAttribute('visibility', 'visible');
     document.getElementById('cx').setAttribute('x1', x(i)); document.getElementById('cx').setAttribute('x2', x(i));
     document.getElementById('c-pv').setAttribute('cx', x(i)); document.getElementById('c-pv').setAttribute('cy', y(s.pv));
     document.getElementById('c-uv').setAttribute('cx', x(i)); document.getElementById('c-uv').setAttribute('cy', y(s.uv));
     const row = (color, v, name) => el('div', { class: 'row' }, el('i', { style: `background:var(--${color})` }), el('b', { text: fmt.format(v) }), el('span', { text: name }));
-    tip.replaceChildren(el('div', { class: 'day', text: dayLabel(s.date, true) + (s.today ? ', so far' : '') }), row('pv', s.pv, 'page views'), row('uv', s.uv, 'visitors'));
+    if (drag && drag.a !== drag.b) {
+      const lo = Math.min(drag.a, drag.b), hi = Math.max(drag.a, drag.b), days = series.slice(lo, hi + 1);
+      band.setAttribute('x', x(lo)); band.setAttribute('width', x(hi) - x(lo)); band.setAttribute('visibility', 'visible');
+      tip.replaceChildren(el('div', { class: 'day', text: dayLabel(series[lo].date) + ' – ' + dayLabel(series[hi].date, true) + ', ' + days.length + ' days' }), row('pv', days.reduce((a, d) => a + d.pv, 0), 'page views'));
+    } else {
+      band.setAttribute('visibility', 'hidden');
+      tip.replaceChildren(el('div', { class: 'day', text: dayLabel(s.date, true) + (s.today ? ', so far' : '') }), row('pv', s.pv, 'page views'), row('uv', s.uv, 'visitors'));
+    }
     tip.style.display = 'block';
     const left = 8 + x(i), w = tip.offsetWidth;
     tip.style.left = (left + 12 + w > W ? left - 12 - w : left + 12) + 'px';
   }
   function nearest(e) {
     if (!geom) return -1;
+    if (geom.n === 1) return 0;
     const r = $('svg').getBoundingClientRect(), px = (e.clientX - r.left) * (geom.W / r.width);
     return Math.max(0, Math.min(geom.n - 1, Math.round(((px - geom.m.l) / geom.pw) * (geom.n - 1))));
   }
@@ -366,8 +454,8 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
     $('daily').replaceChildren(el('table', {}, el('thead', {}, el('tr', {}, el('th', { text: 'Day' }), el('th', { class: 'num', text: 'Page views' }), el('th', { class: 'num', text: 'Visitors' }))), el('tbody', {}, ...rows)));
   }
 
-  const head = (first, sortable) => el('thead', {}, el('tr', {},
-    el('th', { text: first }), el('th', { class: 'bar' }),
+  const head = (first, sortable, select) => el('thead', {}, el('tr', {},
+    select, el('th', { text: first }), el('th', { class: 'bar' }),
     ...['pv', 'uv'].map((k) => {
       const name = k === 'pv' ? 'Views' : 'Visitors';
       return sortable
@@ -379,7 +467,7 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
   // The pages grouped by the next part of their path. A group opens to its
   // own totals, chart and pages.
   function renderSections() {
-    const list = data.sections, max = Math.max(1, ...list.map((s) => s.pv));
+    const list = data.sections;
     $('sec-count').textContent = list.length ? (state.prefix ? 'under ' + state.prefix : 'by first part of the path') : '';
     if (!list.length) { $('sections').replaceChildren(el('div', { class: 'empty', text: 'No visits in this period.' })); return; }
     const rows = (state.allSections ? list : list.slice(0, 12)).map((s) => {
@@ -389,25 +477,48 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
         ? el('span', { text: state.prefix + '/' })
         : el('button', { class: 'drill', text: '/' + s.section, title: 'Show only ' + to, onclick: () => go({ prefix: to }) });
       const sub = !own && s.pages > 1 ? el('span', { class: 'sub', text: fmt.format(s.pages) + ' pages' }) : null;
-      return el('tr', {}, el('td', {}, el('div', { class: 'name' }, name, sub)), bar(s.pv, max), el('td', { class: 'num', text: fmt.format(s.pv) }), el('td', { class: 'num', text: fmt.format(s.uv) }));
+      return el('tr', {}, el('td', {}, el('div', { class: 'name' }, name, sub)), bar(0, 0), el('td', { class: 'num', text: fmt.format(s.pv) }), el('td', { class: 'num', text: fmt.format(s.uv) }));
     });
     const more = !state.allSections && list.length > rows.length ? el('div', { class: 'more' }, el('button', { class: 'link', text: 'Show all ' + fmt.format(list.length) + ' sections', onclick: () => { state.allSections = true; renderSections(); } })) : null;
     $('sections').replaceChildren(el('table', {}, head('Section'), el('tbody', {}, ...rows)), ...(more ? [more] : []));
   }
 
   function renderPages() {
-    const q = state.q.trim().toLowerCase();
+    const q = state.q.trim().toLowerCase(), cleaning = state.admin && state.cleaning;
     const all = data.paths.filter((p) => !q || p.path.toLowerCase().includes(q)).sort((a, b) => b[state.sort] - a[state.sort] || b.pv - a.pv);
     const max = Math.max(1, ...all.map((p) => p[state.sort]));
     const shown = state.all ? all : all.slice(0, 50);
     const total = data.summary.pages;
     $('page-count').textContent = q ? fmt.format(all.length) + ' match' : data.paths.length < total ? 'top ' + fmt.format(data.paths.length) + ' of ' + fmt.format(total) : fmt.format(total);
+    $('clean').hidden = !state.admin;
+    $('clean').textContent = cleaning ? 'Done' : 'Clean up';
+    $('clean').setAttribute('aria-pressed', String(cleaning));
+    $('tools').hidden = !cleaning;
+    renderSelection();
     if (!all.length) { $('pages').replaceChildren(el('div', { class: 'empty', text: q ? 'No page matches.' : 'No visits in this period.' })); return; }
+
+    // When cleaning up, every listed page can be ticked; the box in the
+    // heading ticks all that are listed.
+    const tick = (path) => el('td', { class: 'sel' }, el('input', {
+      type: 'checkbox', 'aria-label': 'Select ' + path, ...(state.selected.has(path) ? { checked: '' } : {}),
+      onchange: (e) => { e.target.checked ? state.selected.add(path) : state.selected.delete(path); renderSelection(); },
+    }));
+    const everyShown = shown.length > 0 && shown.every((p) => state.selected.has(p.path));
+    const tickAll = cleaning ? el('th', { class: 'sel' }, el('input', {
+      type: 'checkbox', 'aria-label': 'Select all listed pages', ...(everyShown ? { checked: '' } : {}),
+      onchange: (e) => { for (const p of shown) e.target.checked ? state.selected.add(p.path) : state.selected.delete(p.path); renderPages(); },
+    })) : null;
     const rows = shown.map((p) => el('tr', {},
+      cleaning ? tick(p.path) : null,
       el('td', {}, el('a', { href: 'https://' + state.host + p.path, target: '_blank', rel: 'noopener', title: p.path, text: p.path })),
       bar(p[state.sort], max), el('td', { class: 'num', text: fmt.format(p.pv) }), el('td', { class: 'num', text: fmt.format(p.uv) })));
     const more = all.length > shown.length ? el('div', { class: 'more' }, el('button', { class: 'link', text: 'Show all ' + fmt.format(all.length) + ' pages', onclick: () => { state.all = true; renderPages(); } })) : null;
-    $('pages').replaceChildren(el('table', {}, head('Page', true), el('tbody', {}, ...rows)), ...(more ? [more] : []));
+    $('pages').replaceChildren(el('table', {}, head('Page', true, tickAll), el('tbody', {}, ...rows)), ...(more ? [more] : []));
+  }
+  function renderSelection() {
+    const n = state.selected.size;
+    $('sel-count').textContent = n ? fmt.format(n) + (n === 1 ? ' page selected' : ' pages selected') : 'No page selected';
+    $('del-selected').disabled = !n;
   }
 
   function go(change) {
@@ -416,28 +527,136 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
     load(true);
   }
 
+  // ---- Signing in, with the login the main site and the blog use. The
+  // token lives in this origin's storage, so being signed in on changkun.de
+  // is being signed in here.
+  async function token() {
+    try { return auth ? await auth.getToken() : null; } catch (e) { return null; }
+  }
+  async function checkSession() {
+    state.admin = false; state.who = ''; state.denied = false;
+    const t = await token();
+    if (t) {
+      try {
+        const r = await fetch('/urlstat/dashboard/session', { headers: { Authorization: 'Bearer ' + t } });
+        if (r.ok) { state.admin = true; state.who = (await r.json()).principal; } else state.denied = true;
+      } catch (e) { /* offline: stay signed out */ }
+    }
+    if (!state.admin) state.cleaning = false;
+    renderWho();
+    if (data) renderPages();
+  }
+  function renderWho() {
+    if (!auth) { $('who').replaceChildren(); return; }
+    const out = el('button', { class: 'link', text: 'Sign out', onclick: () => { auth.logout(); checkSession(); } });
+    if (state.admin) $('who').replaceChildren(el('span', { text: state.who, title: state.who }), ' ', out);
+    else if (state.denied) $('who').replaceChildren(el('span', { text: 'Signed in, without the right to clean up' }), ' ', out);
+    else $('who').replaceChildren(el('button', { class: 'link', text: 'Sign in', onclick: () => {
+      // The login comes back to this page without its query; keep it.
+      sessionStorage.setItem('urlstat-return', location.search);
+      auth.login(location.href);
+    } }));
+  }
+
+  // ---- Cleaning up: say what would be deleted, and delete it only once
+  // that has been read and confirmed.
+  async function cleanup(body) {
+    const t = await token();
+    const r = await fetch('/urlstat/dashboard/cleanup', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify(body) });
+    if (r.status === 401) { checkSession(); throw new Error('sign in again to clean up'); }
+    if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
+    return r.json();
+  }
+  async function confirmCleanup(what, described) {
+    const req = { hostname: state.host, ...what };
+    try {
+      status('Counting…');
+      const pre = await cleanup(req);
+      status('');
+      if (!pre.pages) { status('Nothing to delete: ' + described + ' has no visits.'); return; }
+      $('c-title').textContent = `Delete ${fmt.format(pre.visits)} ${pre.visits === 1 ? 'visit' : 'visits'}?`;
+      $('c-text').textContent = `${fmt.format(pre.pages)} ${pre.pages === 1 ? 'page' : 'pages'} on ${state.host}: ${described}. The visits are deleted for all time, not only for the period shown, and cannot be restored.`;
+      const items = pre.examples.map((p) => el('li', {}, el('span', { text: p.path, title: p.path }), el('span', { text: fmt.format(p.pv) })));
+      if (pre.pages > pre.examples.length) items.push(el('li', { class: 'rest' }, el('span', { text: 'and ' + fmt.format(pre.pages - pre.examples.length) + ' more' })));
+      $('c-list').replaceChildren(...items);
+      const dialog = $('confirm');
+      dialog.returnValue = '';
+      dialog.showModal();
+      $('c-cancel').focus();
+      const ok = await new Promise((resolve) => dialog.addEventListener('close', () => resolve(dialog.returnValue === 'delete'), { once: true }));
+      if (!ok) return;
+      status('Deleting…');
+      const done = await cleanup({ ...req, confirm: true });
+      state.selected.clear();
+      await load(false);
+      status(`Deleted ${fmt.format(done.visits)} ${done.visits === 1 ? 'visit' : 'visits'} of ${fmt.format(done.pages)} ${done.pages === 1 ? 'page' : 'pages'}.`);
+    } catch (e) {
+      status('Could not clean up: ' + e.message, true);
+    }
+  }
+
   $('host').addEventListener('change', (e) => go({ host: e.target.value, prefix: '' }));
-  $('days').addEventListener('click', (e) => { const d = +e.target.dataset?.days; if (d && d !== state.days) go({ days: d }); });
+  $('days').addEventListener('click', (e) => { const d = +e.target.dataset?.days; if (d && (d !== state.days || state.from)) go({ days: d, from: '', to: '' }); });
   $('q').addEventListener('input', (e) => { state.q = e.target.value; state.all = false; if (data) renderPages(); });
   $('view').addEventListener('click', () => { state.table = !state.table; renderChart(); renderDaily(); });
+  $('clean').addEventListener('click', () => { state.cleaning = !state.cleaning; renderPages(); });
+  $('del-selected').addEventListener('click', () => {
+    const n = state.selected.size;
+    confirmCleanup({ paths: [...state.selected] }, n === 1 ? 'the selected page' : 'the selected pages');
+  });
+  $('del-below').addEventListener('click', () => {
+    const below = Math.round(+$('below').value);
+    if (!(below >= 2 && below <= 1000)) { status('The threshold must be between 2 and 1,000 visits.', true); return; }
+    confirmCleanup({ below, prefix: state.prefix }, `every page${state.prefix ? ' under ' + state.prefix : ''} with fewer than ${below} visits ever`);
+  });
+  $('c-cancel').addEventListener('click', () => $('confirm').close('cancel'));
+  $('c-ok').addEventListener('click', () => $('confirm').close('delete'));
+
   const svg = $('svg');
-  svg.addEventListener('pointermove', (e) => point(nearest(e)));
-  svg.addEventListener('pointerleave', () => { if (document.activeElement !== svg) point(-1); });
+  svg.addEventListener('pointerdown', (e) => {
+    if (!geom || e.button !== 0) return;
+    const i = nearest(e);
+    drag = { a: i, b: i };
+    svg.setPointerCapture(e.pointerId);
+  });
+  svg.addEventListener('pointermove', (e) => { const i = nearest(e); if (drag) drag.b = i; point(i); });
+  svg.addEventListener('pointerup', () => {
+    if (!drag) return;
+    const lo = Math.min(drag.a, drag.b), hi = Math.max(drag.a, drag.b);
+    drag = null;
+    if (lo !== hi) go({ from: series[lo].key, to: series[hi].key });
+  });
+  svg.addEventListener('pointercancel', () => { drag = null; point(-1); });
+  // One day cannot be dragged across; a double click opens it.
+  svg.addEventListener('dblclick', (e) => { const i = nearest(e); if (i >= 0 && geom && geom.n > 1) go({ from: series[i].key, to: series[i].key }); });
+  svg.addEventListener('pointerleave', () => { if (!drag && document.activeElement !== svg) point(-1); });
   svg.addEventListener('focus', () => { if (hover < 0 && geom) point(geom.n - 1); });
-  svg.addEventListener('blur', () => point(-1));
+  svg.addEventListener('blur', () => { if (!drag) point(-1); });
   svg.addEventListener('keydown', (e) => {
     if (!geom) return;
     if (e.key === 'ArrowLeft') point(Math.max(0, (hover < 0 ? geom.n : hover) - 1));
     else if (e.key === 'ArrowRight') point(Math.min(geom.n - 1, hover + 1));
-    else if (e.key === 'Escape') point(-1);
+    else if (e.key === 'Escape') { drag = null; point(-1); }
     else return;
     e.preventDefault();
   });
   new ResizeObserver(() => { if (data) renderChart(); }).observe($('plot'));
   window.addEventListener('popstate', () => { readURL(); hover = -1; load(false); });
 
-  readURL();
-  load(false);
+  (async () => {
+    if (auth) {
+      // Coming back from the login: finish it, then restore the view that
+      // was open when it began.
+      const returning = new URLSearchParams(location.search).has('code');
+      try { await auth.handleCallback(); } catch (e) { /* a failed login leaves the page signed out */ }
+      const back = sessionStorage.getItem('urlstat-return');
+      sessionStorage.removeItem('urlstat-return');
+      if (returning && back != null) history.replaceState(null, '', location.pathname + back);
+    }
+    readURL();
+    load(false);
+    checkSession();
+  })();
 })();
 </script>
 </body>

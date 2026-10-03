@@ -1,6 +1,6 @@
 module changkun.de/x/urlstat
 
-go 1.25
+go 1.27.0
 
 require (
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
@@ -8,6 +8,7 @@ require (
 	github.com/jackc/pgx/v5 v5.7.2
 	golang.org/x/image v0.25.0
 	gopkg.in/yaml.v3 v3.0.1
+	latere.ai/x/pkg v0.45.0
 )
 
 require (
@@ -17,6 +18,7 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	golang.org/x/crypto v0.36.0 // indirect
-	golang.org/x/sync v0.12.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/oauth2 v0.36.0 // indirect
+	golang.org/x/sync v0.21.0 // indirect
+	golang.org/x/text v0.39.0 // indirect
 )

@@ -39,11 +39,15 @@ golang.org/x/crypto/pbkdf2
 ## explicit; go 1.23.0
 golang.org/x/image/font
 golang.org/x/image/math/fixed
-# golang.org/x/sync v0.12.0
-## explicit; go 1.23.0
+# golang.org/x/oauth2 v0.36.0
+## explicit; go 1.25.0
+golang.org/x/oauth2
+golang.org/x/oauth2/internal
+# golang.org/x/sync v0.21.0
+## explicit; go 1.25.0
 golang.org/x/sync/semaphore
-# golang.org/x/text v0.23.0
-## explicit; go 1.23.0
+# golang.org/x/text v0.39.0
+## explicit; go 1.25.0
 golang.org/x/text/cases
 golang.org/x/text/internal
 golang.org/x/text/internal/language
@@ -60,3 +64,9 @@ golang.org/x/text/width
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
+# latere.ai/x/pkg v0.45.0
+## explicit; go 1.27.0
+latere.ai/x/pkg/authkit
+latere.ai/x/pkg/envutil
+latere.ai/x/pkg/jwtauth
+latere.ai/x/pkg/oidc

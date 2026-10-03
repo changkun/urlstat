@@ -9,44 +9,12 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 )
-
-// handleCleanup is the HTTP handler for the cleanup endpoint.
-func handleCleanup(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
-	defer cancel()
-
-	deleted, err := cleanup(ctx)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("cleanup failed: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/plain")
-	fmt.Fprintf(w, "Cleanup complete. Deleted %d low-visit entries (paths with <10 visits).\n", deleted)
-}
-
-const cleanupSQL = `
-	WITH low_visit_paths AS (
-		SELECT hostname, path FROM visits
-		GROUP BY hostname, path HAVING COUNT(*) < 10
-	)
-	DELETE FROM visits v USING low_visit_paths lvp
-	WHERE v.hostname = lvp.hostname AND v.path = lvp.path`
-
-// cleanup removes entries with fewer than 10 visits (likely bots or noise).
-// It returns the total number of deleted documents.
-func cleanup(ctx context.Context) (int64, error) {
-	result, err := db.Exec(ctx, cleanupSQL)
-	if err != nil {
-		return 0, fmt.Errorf("failed to cleanup: %w", err)
-	}
-	return result.RowsAffected(), nil
-}
 
 // Every dashboard query reads one host over [since, until), optionally
 // narrowed to the pages under a path prefix. The prefix is matched by whole
@@ -55,7 +23,7 @@ func cleanup(ctx context.Context) (int64, error) {
 const scopeSQL = `hostname = $1 AND created_at >= $2 AND created_at < $3
 	AND (path = $4 OR starts_with(path, $4 || '/'))`
 
-// hostsSQL lists the hosts with their page views since $1, busiest first.
+// hostsSQL lists the hosts with their page views over [$1, $2), busiest first.
 // The hosts come from a loose index scan, one index probe per host: a plain
 // SELECT DISTINCT reads every row of the table and took seconds.
 const hostsSQL = `
@@ -66,7 +34,7 @@ const hostsSQL = `
 		FROM h WHERE h.hostname IS NOT NULL
 	)
 	SELECT h.hostname,
-		(SELECT COUNT(*) FROM visits v WHERE v.hostname = h.hostname AND v.created_at >= $1) AS pv
+		(SELECT COUNT(*) FROM visits v WHERE v.hostname = h.hostname AND v.created_at >= $1 AND v.created_at < $2) AS pv
 	FROM h WHERE h.hostname IS NOT NULL
 	ORDER BY pv DESC, h.hostname`
 
@@ -119,6 +87,9 @@ const timeseriesSQL = `
 type DashboardAPIResponse struct {
 	Hostname   string           `json:"hostname"`
 	Days       int              `json:"days"`
+	From       string           `json:"from"`   // first day of the period
+	To         string           `json:"to"`     // last day of the period
+	Custom     bool             `json:"custom"` // a chosen range, not the last days
 	Prefix     string           `json:"prefix"`
 	Hosts      []HostItem       `json:"hosts"`
 	Summary    DashboardSummary `json:"summary"`
@@ -181,19 +152,69 @@ type cached[T any] struct {
 var dashboardCache = struct {
 	sync.Mutex
 	pages map[string]cached[[]byte]
-	hosts map[int]cached[[]HostItem]
-}{pages: map[string]cached[[]byte]{}, hosts: map[int]cached[[]HostItem]{}}
+	hosts map[string]cached[[]HostItem]
+}{pages: map[string]cached[[]byte]{}, hosts: map[string]cached[[]HostItem]{}}
 
-// listHosts returns the hosts and their page views over the given days.
-func listHosts(ctx context.Context, days int, since time.Time) ([]HostItem, error) {
+// period is the span of whole UTC days a dashboard request covers.
+type period struct {
+	since, until time.Time // the visits in [since, until)
+	prev         time.Time // where the period before, of the same length, starts
+	days         int
+	custom       bool // a chosen range, not the last days
+}
+
+// key names the period's days, for the cache.
+func (p period) key() string {
+	return p.since.Format(time.DateOnly) + ".." + p.until.Add(-time.Nanosecond).Format(time.DateOnly)
+}
+
+// parsePeriod reads the period from a request: from and to (dates, both
+// included) when they make a range, else the last days (30 by default, at
+// most 365), today included. Days are whole UTC days, so that the first day
+// of the chart is not a partial one.
+func parsePeriod(q url.Values, now time.Time) period {
+	now = now.UTC()
+	today := now.Truncate(24 * time.Hour)
+	from, errFrom := time.Parse(time.DateOnly, q.Get("from"))
+	to, errTo := time.Parse(time.DateOnly, q.Get("to"))
+	if errFrom == nil && errTo == nil && !to.Before(from) && !from.After(today) {
+		if to.After(today) {
+			to = today
+		}
+		if to.Sub(from) > 365*24*time.Hour {
+			from = to.AddDate(0, 0, -365)
+		}
+		days := int(to.Sub(from)/(24*time.Hour)) + 1
+		until := to.AddDate(0, 0, 1)
+		if until.After(now) {
+			until = now
+		}
+		return period{since: from, until: until, prev: from.AddDate(0, 0, -days), days: days, custom: true}
+	}
+
+	days := 30
+	if d := q.Get("days"); d != "" {
+		if _, err := fmt.Sscanf(d, "%d", &days); err != nil {
+			days = 30
+		}
+	}
+	if days <= 0 || days > 365 {
+		days = 30
+	}
+	since := today.AddDate(0, 0, -(days - 1))
+	return period{since: since, until: now, prev: since.AddDate(0, 0, -days), days: days}
+}
+
+// listHosts returns the hosts and their page views over the period.
+func listHosts(ctx context.Context, p period) ([]HostItem, error) {
 	dashboardCache.Lock()
-	c, ok := dashboardCache.hosts[days]
+	c, ok := dashboardCache.hosts[p.key()]
 	dashboardCache.Unlock()
 	if ok && time.Since(c.at) < hostsTTL {
 		return c.val, nil
 	}
 
-	rows, err := db.Query(ctx, hostsSQL, since)
+	rows, err := db.Query(ctx, hostsSQL, p.since, p.until)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list hosts: %w", err)
 	}
@@ -211,41 +232,31 @@ func listHosts(ctx context.Context, days int, since time.Time) ([]HostItem, erro
 	}
 
 	dashboardCache.Lock()
-	dashboardCache.hosts[days] = cached[[]HostItem]{time.Now(), hosts}
+	if len(dashboardCache.hosts) >= cacheLimit {
+		clear(dashboardCache.hosts)
+	}
+	dashboardCache.hosts[p.key()] = cached[[]HostItem]{time.Now(), hosts}
 	dashboardCache.Unlock()
 	return hosts, nil
 }
 
 // dashboardAPI returns JSON data for the dashboard: the hosts, and for one
-// host over the last days (30 by default, at most 365) its totals, daily
-// counts, sections and pages. The prefix parameter narrows all of them to the
-// pages under one path, which is how a section such as /bobook is totalled.
+// host over a period (see parsePeriod) its totals, daily counts, sections and
+// pages. The prefix parameter narrows all of them to the pages under one
+// path, which is how a section such as /bobook is totalled.
 func dashboardAPI(w http.ResponseWriter, r *http.Request) {
-	days := 30
-	if d := r.URL.Query().Get("days"); d != "" {
-		if _, err := fmt.Sscanf(d, "%d", &days); err != nil {
-			days = 30
-		}
-	}
-	if days <= 0 || days > 365 {
-		days = 30
-	}
+	p := parsePeriod(r.URL.Query(), time.Now())
+	days, since, until, prev := p.days, p.since, p.until, p.prev
 	prefix := strings.TrimRight(r.URL.Query().Get("prefix"), "/")
 	if prefix != "" && !strings.HasPrefix(prefix, "/") {
 		prefix = "/" + prefix
 	}
 
-	// The period is whole UTC days, today included, so that the first day
-	// of the chart is not a partial one.
-	until := time.Now().UTC()
-	since := until.Truncate(24*time.Hour).AddDate(0, 0, -(days - 1))
-	prev := since.AddDate(0, 0, -days)
-
 	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 	defer cancel()
 	start := time.Now()
 
-	hosts, err := listHosts(ctx, days, since)
+	hosts, err := listHosts(ctx, p)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -256,7 +267,7 @@ func dashboardAPI(w http.ResponseWriter, r *http.Request) {
 		hostname = hosts[0].Hostname
 	}
 
-	key := fmt.Sprintf("%s\x00%d\x00%s", hostname, days, prefix)
+	key := hostname + "\x00" + p.key() + "\x00" + prefix
 	dashboardCache.Lock()
 	c, ok := dashboardCache.pages[key]
 	dashboardCache.Unlock()
@@ -269,6 +280,9 @@ func dashboardAPI(w http.ResponseWriter, r *http.Request) {
 	resp := DashboardAPIResponse{
 		Hostname:   hostname,
 		Days:       days,
+		From:       since.Format(time.DateOnly),
+		To:         until.Add(-time.Nanosecond).Format(time.DateOnly),
+		Custom:     p.custom,
 		Prefix:     prefix,
 		Hosts:      hosts,
 		Timeseries: []TimeseriesItem{},

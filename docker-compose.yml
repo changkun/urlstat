@@ -8,6 +8,12 @@ services:
     image: urlstat:latest
     deploy:
       replicas: 1
+    # Counting and the dashboard need no configuration. Cleaning up takes a
+    # latere login and AUTH_ALLOWED_PRINCIPALS, the emails or principal ids
+    # allowed to delete (see .env.template); without it nobody is.
+    env_file:
+      - path: .env
+        required: false
     environment:
       - URLSTAT_DB=postgres://urlstat:urlstat@postgres:5432/urlstat?sslmode=disable
     logging:
