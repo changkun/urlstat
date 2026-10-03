@@ -31,7 +31,8 @@ func githubMode(w http.ResponseWriter, r *http.Request) (err error) {
 	}
 
 	// Only allow specified users, maybe allow more in the future.
-	if !source.isAllowed(ss[0], false) {
+	if !sources.allowsGitHub(ss[0]) {
+		sources.refuse(kindGitHub, ss[0])
 		err = errors.New("username is not allowed, please contact @changkun")
 		return
 	}

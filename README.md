@@ -53,6 +53,12 @@ tick pages, or name a threshold ("every page with fewer than 10 visits"),
 read what would be deleted, and confirm. `AUTH_ALLOWED_PRINCIPALS` names the
 accounts; see `.env.template`.
 
+The same account manages who is counted, under **Sources**: the sites that
+load the script and the GitHub accounts that show the badge. Adding or
+removing one applies at once. Sites and accounts that tried and were turned
+away are listed there too, and can be allowed with one click. `allowed.yml`
+only provides the list a new installation starts with.
+
 ## License
 
 MIT &copy; 2021 [Changkun Ou](https://changkun.de)

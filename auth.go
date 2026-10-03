@@ -6,6 +6,7 @@ package main
 
 import (
 	"cmp"
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -92,8 +93,17 @@ func admin(latere *latereVerifier, next http.Handler) http.Handler {
 			return
 		}
 		latere.log.Printf("%s %s by %s", r.Method, r.URL.Path, who)
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalKey{}, who)))
 	})
+}
+
+type principalKey struct{}
+
+// principalOf returns who admin let through, for the record of who changed
+// what.
+func principalOf(r *http.Request) string {
+	who, _ := r.Context().Value(principalKey{}).(string)
+	return who
 }
 
 // session tells a signed-in page who it is, which is how the dashboard

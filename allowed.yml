@@ -1,5 +1,10 @@
 # Trusted source: a trusted source must be communicated beforehand.
 # Please send an email to hi@changkun.de
+#
+# This file is where the list starts, not where it lives: urlstat imports
+# it into its database the first time it runs, and from then on sources are
+# added and removed in the dashboard (Sources, signed in). Editing this
+# file changes nothing on a running installation.
 
 ---
 # setting production to false will add a localhost address to origin.
