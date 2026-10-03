@@ -7,7 +7,6 @@
   <a href="https://github.com/changkun/urlstat/actions/workflows/test.yml"><img alt="test" src="https://github.com/changkun/urlstat/actions/workflows/test.yml/badge.svg"></a>
   <img alt="Go version" src="https://img.shields.io/github/go-mod/go-version/changkun/urlstat">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/changkun/urlstat"></a>
-  <img alt="Views of this repository, counted by urlstat" src="https://changkun.de/urlstat?mode=github&repo=changkun/urlstat">
 </p>
 
 # urlstat
@@ -116,7 +115,7 @@ An account named in `AUTH_ALLOWED_PRINCIPALS` gets three more things.
 <table>
   <tr>
     <td width="50%"><img src=".github/readme/visitors.png" alt="A table of the latest visitors with what each used and where it came from"><br><sub>The latest visitors.</sub></td>
-    <td width="50%"><img src=".github/readme/sources.png" alt="The Sources dialog: allowed sites and accounts, and those seen but not allowed"><br><sub>Sources, with those that tried and were turned away.</sub></td>
+    <td width="50%"><img src=".github/readme/sources.png" alt="The end of the Sources dialog: two sites seen but not allowed, each with an Allow button"><br><sub>Sites that tried and were turned away, to allow with one click.</sub></td>
   </tr>
 </table>
 
