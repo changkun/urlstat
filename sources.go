@@ -26,8 +26,14 @@ const (
 	kindGitHub = "github"
 )
 
-//go:embed migrations/002_sources.sql
-var sourcesSchema string
+// The schema changes since the first, which the service applies itself
+// when it starts. Each is written to be applied again without effect.
+var (
+	//go:embed migrations/002_sources.sql
+	sourcesSchema string
+	//go:embed migrations/003_came_from.sql
+	cameFromSchema string
+)
 
 // sourceList is who may be counted. It is kept in the database, so that it
 // can be changed from the dashboard, and held in memory, so that counting a
@@ -223,6 +229,9 @@ func (s *sourceList) load(ctx context.Context) error {
 func setupSources(ctx context.Context, seed *allowed) error {
 	if _, err := db.Exec(ctx, sourcesSchema); err != nil {
 		return fmt.Errorf("failed to create the sources table: %w", err)
+	}
+	if _, err := db.Exec(ctx, cameFromSchema); err != nil {
+		return fmt.Errorf("failed to add where visits came from: %w", err)
 	}
 	var n int64
 	if err := db.QueryRow(ctx, `SELECT COUNT(*) FROM sources`).Scan(&n); err != nil {

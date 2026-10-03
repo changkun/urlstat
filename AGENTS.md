@@ -37,7 +37,9 @@ HTTP Server (urlstat.go)
 └── GitHub badge mode  → github.go + renderer.go
 ```
 
-**Data flow**: All visits stored in a single PostgreSQL `visits` table with `hostname` column to distinguish origins. Visit records store `hostname`, `visitor_id`, `path`, `ip`, `ua`, `referer`, `created_at`. Statistics computed via SQL GROUP BY queries.
+**Data flow**: All visits stored in a single PostgreSQL `visits` table with `hostname` column to distinguish origins. Visit records store `hostname`, `visitor_id`, `path`, `ip`, `ua`, `referer`, `came_from`, `created_at`. Statistics computed via SQL GROUP BY queries.
+
+**Where visits come from**: `client.js` sends `document.referrer` as the `urlstat-ref` header (`none` when empty, so that a missing header means an older copy of the script). `cameFrom` (`camefrom.go`) turns it into `came_from`: `internal` for another page of the same site, else a campaign tag from the page's address (`utm_source`, `ref`, `source`), else the referring site under its main name (`www.google.de` and `google.co.jp` are `google.com`, `t.co` is `x.com`, an Android app's package is its site), else the empty string for a direct visit. `NULL` means not recorded: every visit before 2026-10-03 and any from a cached older script, and those are in no row of the dashboard's "Came from". `referer` keeps the address as sent. The header is listed in the preflight's allowed headers; a script that sends it against a server that does not list it is blocked by the browser, which matters when rolling the server back.
 
 **Dashboard**: `public/dashboard.html` is one file with no external scripts; it draws its chart as inline SVG and reads everything from `/urlstat/dashboard/api?hostname=&days=&prefix=`, or `from=&to=` in place of `days` for a range of days chosen by dragging across the chart. The API returns the hosts (busiest first, which is also the default host), and for one host the totals for the period and the one before it, daily counts, the pages grouped by their next path segment, and the top pages. `prefix` narrows all of that to the pages under one path, matched by whole segments, which is how a section such as `/bobook` is totalled. Visitors are distinct IP addresses over the period, counted in two grouping steps because `COUNT(DISTINCT ip)` sorts and the server has one processor. Responses are cached in memory, a minute for a month and longer for longer periods.
 
@@ -60,7 +62,7 @@ CREATE TABLE visits (
 );
 ```
 
-Indexes are defined in `migrations/001_initial.sql`. `migrations/002_sources.sql` adds the `sources` table; the service applies it itself when it starts.
+Indexes are defined in `migrations/001_initial.sql`. `migrations/002_sources.sql` adds the `sources` table and `migrations/003_came_from.sql` the `came_from` column with its index; the service applies both itself when it starts. On a large `visits` table, create that index beforehand with `CREATE INDEX CONCURRENTLY`.
 
 ## Deployment
 

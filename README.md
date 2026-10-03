@@ -48,6 +48,12 @@ chart, and the pages, which can be opened section by section (`/blog`,
 keeps the host, period and path, so a view can be bookmarked. Dragging across
 the chart zooms in on those days.
 
+**Came from** says where visits came from: the site that linked to the page,
+or a tag in the link. Apps often hide where a link was opened from, so a
+link you share is best tagged, for instance
+`https://example.com/post?utm_source=linkedin`; the page is counted under
+its plain address either way.
+
 Signed in with the changkun.de login, an allowed account can also clean up:
 tick pages, or name a threshold ("every page with fewer than 10 visits"),
 read what would be deleted, and confirm. `AUTH_ALLOWED_PRINCIPALS` names the

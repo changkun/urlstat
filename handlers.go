@@ -31,6 +31,7 @@ type visit struct {
 	IP        string    `db:"ip"`
 	UA        string    `db:"ua"`
 	Referer   string    `db:"referer"`
+	CameFrom  *string   `db:"came_from"` // nil when the script did not say, see cameFrom
 	Time      time.Time `db:"created_at"`
 }
 
@@ -43,7 +44,7 @@ func recording(w http.ResponseWriter, r *http.Request) {
 		if sources.allowsOrigin(origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "urlstat-ua, urlstat-url")
+			w.Header().Set("Access-Control-Allow-Headers", "urlstat-ua, urlstat-url, urlstat-ref")
 		} else {
 			// A browser stops here: without these headers it never sends
 			// the visit, so this is where a site not on the list is seen.
@@ -94,6 +95,21 @@ func recording(w http.ResponseWriter, r *http.Request) {
 		cookieVid = c.Value
 	}
 
+	// Where the visitor came from, when the script reports it. The request's
+	// own Referer is the page being counted, which says nothing about that.
+	referer, from := r.Referer(), (*string)(nil)
+	if refs := r.Header.Values("urlstat-ref"); len(refs) > 0 {
+		ref := refs[0]
+		if ref == "none" {
+			ref = ""
+		}
+		if len(ref) > 2048 {
+			ref = ref[:2048]
+		}
+		name := cameFrom(u, ref)
+		referer, from = ref, &name
+	}
+
 	var vid string
 	hostname := u.Host
 	vid, err = saveVisit(r.Context(), hostname, &visit{
@@ -101,7 +117,8 @@ func recording(w http.ResponseWriter, r *http.Request) {
 		Path:      u.Path,
 		IP:        readIP(r),
 		UA:        r.Header.Get("urlstat-ua"),
-		Referer:   r.Referer(),
+		Referer:   referer,
+		CameFrom:  from,
 		Time:      time.Now().UTC(),
 	})
 	if err != nil {
@@ -139,8 +156,8 @@ func recording(w http.ResponseWriter, r *http.Request) {
 }
 
 const insertSQL = `
-	INSERT INTO visits (hostname, visitor_id, path, ip, ua, referer, created_at)
-	VALUES ($1, $2, $3, $4, $5, $6, $7)`
+	INSERT INTO visits (hostname, visitor_id, path, ip, ua, referer, came_from, created_at)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
 // saveVisit saves a visit to storage.
 func saveVisit(ctx context.Context, hostname string, v *visit) (string, error) {
@@ -152,7 +169,7 @@ func saveVisit(ctx context.Context, hostname string, v *visit) (string, error) {
 		v.VisitorID = uuid.New().String()
 	}
 
-	_, err := db.Exec(ctx, insertSQL, hostname, v.VisitorID, v.Path, v.IP, v.UA, v.Referer, v.Time)
+	_, err := db.Exec(ctx, insertSQL, hostname, v.VisitorID, v.Path, v.IP, v.UA, v.Referer, v.CameFrom, v.Time)
 	if err != nil {
 		return "", fmt.Errorf("failed to insert record: %w", err)
 	}

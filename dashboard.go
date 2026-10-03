@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // Every dashboard query reads one host over [since, until), optionally
@@ -83,6 +85,21 @@ const timeseriesSQL = `
 	) t
 	GROUP BY date ORDER BY date`
 
+// referrersSQL counts the visits by where they came from, among those that
+// recorded it. A visit from another page of the same site is 'internal'.
+const referrersSQL = `
+	SELECT came_from, SUM(n)::bigint AS pv, COUNT(*) AS uv
+	FROM (
+		SELECT came_from, ip, COUNT(*) AS n
+		FROM visits WHERE ` + scopeSQL + ` AND came_from IS NOT NULL GROUP BY 1, 2
+	) t
+	GROUP BY came_from ORDER BY pv DESC, came_from LIMIT 100`
+
+// referrersSinceSQL is when a host's visits began to record it.
+const referrersSinceSQL = `
+	SELECT created_at FROM visits WHERE hostname = $1 AND came_from IS NOT NULL
+	ORDER BY created_at LIMIT 1`
+
 // DashboardAPIResponse is the JSON response for the dashboard API.
 type DashboardAPIResponse struct {
 	Hostname   string           `json:"hostname"`
@@ -96,6 +113,18 @@ type DashboardAPIResponse struct {
 	Timeseries []TimeseriesItem `json:"timeseries"`
 	Sections   []SectionItem    `json:"sections"`
 	Paths      []PathItem       `json:"paths"`
+	// Where the visits came from, and the day the host began to record it
+	// (empty when it has not): earlier visits are in no row of Referrers.
+	Referrers      []ReferrerItem `json:"referrers"`
+	ReferrersSince string         `json:"referrers_since"`
+}
+
+// ReferrerItem is one place visits came from: a site, a campaign tag,
+// "internal" for another page of the same site, or "" for none named.
+type ReferrerItem struct {
+	Source string `json:"source"`
+	PV     int64  `json:"pv"`
+	UV     int64  `json:"uv"`
 }
 
 type HostItem struct {
@@ -288,6 +317,7 @@ func dashboardAPI(w http.ResponseWriter, r *http.Request) {
 		Timeseries: []TimeseriesItem{},
 		Sections:   []SectionItem{},
 		Paths:      []PathItem{},
+		Referrers:  []ReferrerItem{},
 	}
 	if hostname == "" {
 		w.Header().Set("Content-Type", "application/json")
@@ -377,6 +407,29 @@ func dashboardAPI(w http.ResponseWriter, r *http.Request) {
 			}
 			item.Date = date.Format("2006-01-02")
 			resp.Timeseries = append(resp.Timeseries, item)
+		}
+		return rows.Err()
+	})
+	run("referrers", func() error {
+		var first time.Time
+		switch err := db.QueryRow(ctx, referrersSinceSQL, hostname).Scan(&first); {
+		case errors.Is(err, pgx.ErrNoRows):
+			return nil // nothing recorded yet, so nothing to count
+		case err != nil:
+			return err
+		}
+		resp.ReferrersSince = first.UTC().Format(time.DateOnly)
+		rows, err := db.Query(ctx, referrersSQL, hostname, since, until, prefix)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var item ReferrerItem
+			if err := rows.Scan(&item.Source, &item.PV, &item.UV); err != nil {
+				return err
+			}
+			resp.Referrers = append(resp.Referrers, item)
 		}
 		return rows.Err()
 	})

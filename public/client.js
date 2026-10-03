@@ -17,7 +17,10 @@ if (report.length !== 0) {
     endpoint += '?report=' + report.join('+')
 }
 
-const h = new Headers({'urlstat-url': window.location.href,'urlstat-ua': navigator.userAgent})
+// urlstat-ref says where the visitor came from; "none" when the browser
+// names nothing, so that the header is always sent and its absence means an
+// older copy of this script.
+const h = new Headers({'urlstat-url': window.location.href,'urlstat-ua': navigator.userAgent,'urlstat-ref': document.referrer || 'none'})
 const r = new Request(endpoint, {method: 'GET', headers: h})
 fetch(r).then(resp => {
     if (!resp.ok) throw Error(resp.statusText)
