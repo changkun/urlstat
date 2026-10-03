@@ -117,6 +117,23 @@ func TestDashboardAPI(t *testing.T) {
 		}
 	}
 
+	// A chosen range of days, both included, with the range before it as
+	// the previous period.
+	day := now.AddDate(0, 0, -8).Format(time.DateOnly)
+	q := url.Values{"hostname": {host}, "from": {day}, "to": {day}}
+	w := httptest.NewRecorder()
+	dashboardAPI(w, httptest.NewRequest(http.MethodGet, "/urlstat/dashboard/api?"+q.Encode(), nil))
+	var ranged DashboardAPIResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &ranged); err != nil {
+		t.Fatalf("range: %v", err)
+	}
+	if !ranged.Custom || ranged.From != day || ranged.To != day || ranged.Days != 1 {
+		t.Errorf("range = %s..%s, %d days, custom %v; want one day %s", ranged.From, ranged.To, ranged.Days, ranged.Custom, day)
+	}
+	if want := (DashboardSummary{TotalPV: 1, TotalUV: 1, Pages: 1, PrevPV: 1, PrevUV: 1}); ranged.Summary != want {
+		t.Errorf("range summary = %+v, want %+v", ranged.Summary, want)
+	}
+
 	// The host list carries the period's views.
 	found := false
 	for _, h := range all.Hosts {
@@ -126,5 +143,40 @@ func TestDashboardAPI(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("hosts do not list %s with 6 views: %+v", host, all.Hosts)
+	}
+}
+
+// TestParsePeriod pins how a request's period is read.
+func TestParsePeriod(t *testing.T) {
+	now := time.Date(2026, 10, 3, 15, 30, 0, 0, time.UTC)
+	date := func(s string) time.Time {
+		d, err := time.Parse(time.DateOnly, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+	for name, tt := range map[string]struct {
+		query string
+		want  period
+	}{
+		"default":            {"", period{since: date("2026-09-04"), until: now, prev: date("2026-08-05"), days: 30}},
+		"a week":             {"days=7", period{since: date("2026-09-27"), until: now, prev: date("2026-09-20"), days: 7}},
+		"too many days":      {"days=4000", period{since: date("2026-09-04"), until: now, prev: date("2026-08-05"), days: 30}},
+		"a range":            {"from=2026-06-01&to=2026-06-14", period{since: date("2026-06-01"), until: date("2026-06-15"), prev: date("2026-05-18"), days: 14, custom: true}},
+		"a single day":       {"from=2026-06-08&to=2026-06-08", period{since: date("2026-06-08"), until: date("2026-06-09"), prev: date("2026-06-07"), days: 1, custom: true}},
+		"a range to today":   {"from=2026-10-01&to=2026-10-03", period{since: date("2026-10-01"), until: now, prev: date("2026-09-28"), days: 3, custom: true}},
+		"past today":         {"from=2026-10-01&to=2027-01-01", period{since: date("2026-10-01"), until: now, prev: date("2026-09-28"), days: 3, custom: true}},
+		"backwards":          {"from=2026-06-14&to=2026-06-01", period{since: date("2026-09-04"), until: now, prev: date("2026-08-05"), days: 30}},
+		"not dates":          {"from=yesterday&to=today&days=7", period{since: date("2026-09-27"), until: now, prev: date("2026-09-20"), days: 7}},
+		"longer than a year": {"from=2020-01-01&to=2026-06-30", period{since: date("2025-06-30"), until: date("2026-07-01"), prev: date("2024-06-29"), days: 366, custom: true}},
+	} {
+		q, err := url.ParseQuery(tt.query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := parsePeriod(q, now); got != tt.want {
+			t.Errorf("%s: parsePeriod(%q) =\n\t%+v, want\n\t%+v", name, tt.query, got, tt.want)
+		}
 	}
 }

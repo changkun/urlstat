@@ -45,7 +45,13 @@ Use query parameter: `mode=github` and `repo=username/reponame`. For instance:
 totals for the last 7 days to a year against the period before, a daily
 chart, and the pages, which can be opened section by section (`/blog`,
 `/blog/posts`, ...) to total everything under one path. The page's address
-keeps the host, period and path, so a view can be bookmarked.
+keeps the host, period and path, so a view can be bookmarked. Dragging across
+the chart zooms in on those days.
+
+Signed in with the changkun.de login, an allowed account can also clean up:
+tick pages, or name a threshold ("every page with fewer than 10 visits"),
+read what would be deleted, and confirm. `AUTH_ALLOWED_PRINCIPALS` names the
+accounts; see `.env.template`.
 
 ## License
 
