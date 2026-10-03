@@ -128,6 +128,7 @@ func recording(w http.ResponseWriter, r *http.Request) {
 	if cookieVid == "" && vid != "" {
 		w.Header().Set("Set-Cookie", urlstatCookieVid+"="+vid)
 	}
+	rememberAgent(r.Context(), r.Header.Get("urlstat-ua"))
 
 	// Report page statistics
 	var stat stat
