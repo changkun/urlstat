@@ -103,7 +103,8 @@ td .name > :first-child { flex: 0 1 auto; min-width: 3ch; overflow: hidden; text
 td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 12px; }
 .drill { border: 0; background: none; padding: 0; cursor: pointer; text-align: left; }
 .drill:hover { text-decoration: underline; }
-#sections td.bar { width: 16%; }
+/* The section table is narrow; its counts say enough without bars. */
+#sections td.bar, #sections th.bar { display: none; }
 .more { padding: 8px 14px 10px; border-top: 1px solid var(--grid); color: var(--ink-2); }
 .search { height: 26px; width: 190px; max-width: 46vw; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--page); }
 .scroll { max-height: 232px; overflow: auto; margin-top: 4px; }
