@@ -11,10 +11,11 @@ github.com/jackc/pgpassfile
 # github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761
 ## explicit; go 1.14
 github.com/jackc/pgservicefile
-# github.com/jackc/pgx/v5 v5.7.2
-## explicit; go 1.21
+# github.com/jackc/pgx/v5 v5.11.0
+## explicit; go 1.25.0
 github.com/jackc/pgx/v5
 github.com/jackc/pgx/v5/internal/iobufpool
+github.com/jackc/pgx/v5/internal/pgdatetime
 github.com/jackc/pgx/v5/internal/pgio
 github.com/jackc/pgx/v5/internal/sanitize
 github.com/jackc/pgx/v5/internal/stmtcache
@@ -32,22 +33,19 @@ github.com/jackc/puddle/v2/internal/genstack
 ## explicit
 # github.com/rogpeppe/go-internal v1.14.1
 ## explicit; go 1.23
-# golang.org/x/crypto v0.36.0
-## explicit; go 1.23.0
-golang.org/x/crypto/pbkdf2
-# golang.org/x/image v0.25.0
-## explicit; go 1.23.0
+# golang.org/x/image v0.46.0
+## explicit; go 1.26.0
 golang.org/x/image/font
 golang.org/x/image/math/fixed
 # golang.org/x/oauth2 v0.36.0
 ## explicit; go 1.25.0
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
-# golang.org/x/sync v0.21.0
-## explicit; go 1.25.0
+# golang.org/x/sync v0.23.0
+## explicit; go 1.26.0
 golang.org/x/sync/semaphore
-# golang.org/x/text v0.39.0
-## explicit; go 1.25.0
+# golang.org/x/text v0.42.0
+## explicit; go 1.26.0
 golang.org/x/text/cases
 golang.org/x/text/internal
 golang.org/x/text/internal/language
