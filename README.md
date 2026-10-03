@@ -39,6 +39,14 @@ Use query parameter: `mode=github` and `repo=username/reponame`. For instance:
 
 ![](https://changkun.de/urlstat?mode=github&repo=changkun/urlstat)
 
+## Dashboard
+
+`/urlstat/dashboard` shows the page views and visitors of every tracked host:
+totals for the last 7 days to a year against the period before, a daily
+chart, and the pages, which can be opened section by section (`/blog`,
+`/blog/posts`, ...) to total everything under one path. The page's address
+keeps the host, period and path, so a view can be bookmarked.
+
 ## License
 
 MIT &copy; 2021 [Changkun Ou](https://changkun.de)
