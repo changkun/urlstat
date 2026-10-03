@@ -1,0 +1,45 @@
+# Vet and test on every push and pull request. The tests read and write a
+# real database, so the job brings up Postgres and applies the first
+# migration; the service applies the later ones itself when it starts.
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: urlstat
+          POSTGRES_PASSWORD: urlstat
+          POSTGRES_DB: urlstat
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U urlstat"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      URLSTAT_DB: postgres://urlstat:urlstat@localhost:5432/urlstat?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Apply the first migration
+        run: psql "$URLSTAT_DB" -v ON_ERROR_STOP=1 -f migrations/001_initial.sql
+      - name: Format
+        run: test -z "$(gofmt -l $(git ls-files '*.go' ':!vendor'))"
+      - name: Vet
+        run: go vet -mod=vendor .
+      - name: Test
+        run: go test -mod=vendor -count=1 .
