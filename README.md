@@ -54,6 +54,10 @@ link you share is best tagged, for instance
 `https://example.com/post?utm_source=linkedin`; the page is counted under
 its plain address either way.
 
+**Used** says what visitors read with, by device, system or browser, with
+crawlers counted apart from people, and how many visitors came back on
+another day.
+
 Signed in with the changkun.de login, an allowed account can also clean up:
 tick pages, or name a threshold ("every page with fewer than 10 visits"),
 read what would be deleted, and confirm. `AUTH_ALLOWED_PRINCIPALS` names the
@@ -64,6 +68,10 @@ load the script and the GitHub accounts that show the badge. Adding or
 removing one applies at once. Sites and accounts that tried and were turned
 away are listed there too, and can be allowed with one click. `allowed.yml`
 only provides the list a new installation starts with.
+
+Signed in, the dashboard also lists the latest **visitors** one by one: the
+address, what it used, where it came from and what it read. An address that
+turns out to be a machine can be removed with its visits from there.
 
 ## License
 
