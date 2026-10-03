@@ -126,6 +126,7 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
 .btn { height: 26px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); cursor: pointer; white-space: nowrap; }
 .btn:hover:not(:disabled) { background: var(--wash); }
 .btn:disabled { opacity: 0.5; cursor: default; }
+.btn[aria-pressed="true"] { background: var(--ink); border-color: transparent; color: var(--surface); }
 .btn.danger { background: var(--danger); border-color: transparent; color: #fff; }
 .btn.danger:hover:not(:disabled) { background: var(--danger); filter: brightness(1.12); }
 .tools { display: grid; gap: 6px; padding: 8px 14px; margin-top: 8px; border-top: 1px solid var(--grid); border-bottom: 1px solid var(--grid); background: var(--wash); color: var(--ink-2); }
@@ -197,7 +198,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
     <section class="card" aria-label="Pages">
       <div class="head"><h2>Pages</h2><span class="count" id="page-count"></span>
         <div class="right">
-          <button class="link" id="clean" aria-pressed="false" hidden>Clean up</button>
+          <button class="btn" id="clean" aria-pressed="false" hidden>Clean up…</button>
           <input class="search" id="q" type="search" placeholder="Filter pages" aria-label="Filter pages">
         </div>
       </div>
@@ -491,7 +492,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
     const total = data.summary.pages;
     $('page-count').textContent = q ? fmt.format(all.length) + ' match' : data.paths.length < total ? 'top ' + fmt.format(data.paths.length) + ' of ' + fmt.format(total) : fmt.format(total);
     $('clean').hidden = !state.admin;
-    $('clean').textContent = cleaning ? 'Done' : 'Clean up';
+    $('clean').textContent = cleaning ? 'Done cleaning up' : 'Clean up…';
     $('clean').setAttribute('aria-pressed', String(cleaning));
     $('tools').hidden = !cleaning;
     renderSelection();
