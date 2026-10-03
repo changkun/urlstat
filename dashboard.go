@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -68,27 +70,50 @@ const hostsSQL = `
 	FROM h WHERE h.hostname IS NOT NULL
 	ORDER BY pv DESC, h.hostname`
 
-const summarySQL = `
-	SELECT COUNT(*), COUNT(DISTINCT ip), COUNT(DISTINCT path)
-	FROM visits WHERE ` + scopeSQL
+// The server this runs on has a single processor, and COUNT(DISTINCT ip)
+// sorts every row it is given. So visitors are counted in two steps, which
+// hash: first one row per address, then the rows.
+
+// overviewSQL reads the period once and answers three questions from that
+// one pass: the totals (kind 0), the pages grouped by their next path
+// segment below the prefix (kind 1; $5 is that segment's position in the
+// path, and the segment is empty for the prefix's own page), and the pages
+// (kind 2).
+const overviewSQL = `
+	WITH v AS MATERIALIZED (
+		SELECT path, ip, COUNT(*) AS n FROM visits WHERE ` + scopeSQL + `
+		GROUP BY path, ip
+	), p AS (
+		SELECT path, SUM(n)::bigint AS pv, COUNT(*) AS uv FROM v GROUP BY path
+	), s AS (
+		SELECT a.section, a.pv, a.uv, b.pages
+		FROM (
+			SELECT section, SUM(n)::bigint AS pv, COUNT(*) AS uv
+			FROM (SELECT split_part(path, '/', $5) AS section, ip, SUM(n) AS n FROM v GROUP BY 1, 2) t
+			GROUP BY section
+		) a JOIN (
+			SELECT split_part(path, '/', $5) AS section, COUNT(*) AS pages FROM p GROUP BY 1
+		) b USING (section)
+	)
+	SELECT 0 AS kind, '' AS name,
+		(SELECT COALESCE(SUM(n), 0)::bigint FROM v) AS pv,
+		(SELECT COUNT(*) FROM (SELECT 1 FROM v GROUP BY ip) i) AS uv,
+		(SELECT COUNT(*) FROM p) AS pages
+	UNION ALL (SELECT 1, section, pv, uv, pages FROM s ORDER BY pv DESC, uv DESC LIMIT 100)
+	UNION ALL (SELECT 2, path, pv, uv, 1 FROM p ORDER BY pv DESC, uv DESC LIMIT 1000)`
+
+// previousSQL totals the period before, for the change shown on the totals.
+const previousSQL = `
+	SELECT COALESCE(SUM(n), 0)::bigint, COUNT(*)
+	FROM (SELECT ip, COUNT(*) AS n FROM visits WHERE ` + scopeSQL + ` GROUP BY ip) t`
 
 const timeseriesSQL = `
-	SELECT (created_at AT TIME ZONE 'UTC')::date AS date, COUNT(*) AS pv, COUNT(DISTINCT ip) AS uv
-	FROM visits WHERE ` + scopeSQL + `
-	GROUP BY 1 ORDER BY 1`
-
-// sectionsSQL groups the pages by their next path segment below the prefix;
-// $5 is that segment's position in the path. The segment is empty for the
-// prefix's own page.
-const sectionsSQL = `
-	SELECT split_part(path, '/', $5) AS section, COUNT(*) AS pv, COUNT(DISTINCT ip) AS uv, COUNT(DISTINCT path) AS pages
-	FROM visits WHERE ` + scopeSQL + `
-	GROUP BY 1 ORDER BY pv DESC, uv DESC LIMIT 100`
-
-const pathsSQL = `
-	SELECT path, COUNT(*) AS pv, COUNT(DISTINCT ip) AS uv
-	FROM visits WHERE ` + scopeSQL + `
-	GROUP BY path ORDER BY pv DESC, uv DESC LIMIT 1000`
+	SELECT date, SUM(n)::bigint AS pv, COUNT(*) AS uv
+	FROM (
+		SELECT (created_at AT TIME ZONE 'UTC')::date AS date, ip, COUNT(*) AS n
+		FROM visits WHERE ` + scopeSQL + ` GROUP BY 1, 2
+	) t
+	GROUP BY date ORDER BY date`
 
 // DashboardAPIResponse is the JSON response for the dashboard API.
 type DashboardAPIResponse struct {
@@ -137,12 +162,16 @@ type PathItem struct {
 }
 
 // The dashboard is public and its queries aggregate up to a year of visits,
-// so finished responses are kept for a short time.
+// so finished responses are kept for a while: a minute for a month, longer
+// for a longer period, whose figures move less.
 const (
-	dashboardTTL = time.Minute
-	hostsTTL     = 5 * time.Minute
-	cacheLimit   = 256
+	hostsTTL   = 5 * time.Minute
+	cacheLimit = 256
 )
+
+func dashboardTTL(days int) time.Duration {
+	return max(time.Minute, time.Duration(days)*2*time.Second)
+}
 
 type cached[T any] struct {
 	at  time.Time
@@ -231,7 +260,7 @@ func dashboardAPI(w http.ResponseWriter, r *http.Request) {
 	dashboardCache.Lock()
 	c, ok := dashboardCache.pages[key]
 	dashboardCache.Unlock()
-	if ok && time.Since(c.at) < dashboardTTL {
+	if ok && time.Since(c.at) < dashboardTTL(days) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(c.val)
 		return
@@ -252,7 +281,8 @@ func dashboardAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The queries are independent, so they run side by side.
+	// The queries are independent, so they run side by side where the
+	// machine has the processors for it.
 	var (
 		wg   sync.WaitGroup
 		mu   sync.Mutex
@@ -267,14 +297,57 @@ func dashboardAPI(w http.ResponseWriter, r *http.Request) {
 			}
 		})
 	}
-	run("summary", func() error {
-		return db.QueryRow(ctx, summarySQL, hostname, since, until, prefix).
-			Scan(&resp.Summary.TotalPV, &resp.Summary.TotalUV, &resp.Summary.Pages)
+	run("overview", func() error {
+		// The grouping hashes a year of rows; with the default work
+		// memory it would spill to disk.
+		tx, err := db.Begin(ctx)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback(ctx)
+		if _, err := tx.Exec(ctx, "SET LOCAL work_mem = '32MB'"); err != nil {
+			return err
+		}
+		// A path "/a/b" splits on "/" into "", "a", "b": the segment below
+		// a prefix of n segments is part n+2.
+		rows, err := tx.Query(ctx, overviewSQL, hostname, since, until, prefix, strings.Count(prefix, "/")+2)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var (
+				kind          int
+				name          string
+				pv, uv, pages int64
+			)
+			if err := rows.Scan(&kind, &name, &pv, &uv, &pages); err != nil {
+				return err
+			}
+			switch kind {
+			case 0:
+				resp.Summary.TotalPV, resp.Summary.TotalUV, resp.Summary.Pages = pv, uv, pages
+			case 1:
+				resp.Sections = append(resp.Sections, SectionItem{Section: name, PV: pv, UV: uv, Pages: pages})
+			case 2:
+				resp.Paths = append(resp.Paths, PathItem{Path: name, PV: pv, UV: uv})
+			}
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		// Busiest first; the name settles ties so the order is stable.
+		slices.SortFunc(resp.Sections, func(a, b SectionItem) int {
+			return cmp.Or(cmp.Compare(b.PV, a.PV), cmp.Compare(b.UV, a.UV), cmp.Compare(a.Section, b.Section))
+		})
+		slices.SortFunc(resp.Paths, func(a, b PathItem) int {
+			return cmp.Or(cmp.Compare(b.PV, a.PV), cmp.Compare(b.UV, a.UV), cmp.Compare(a.Path, b.Path))
+		})
+		return nil
 	})
 	run("previous period", func() error {
-		var pages int64
-		return db.QueryRow(ctx, summarySQL, hostname, prev, since, prefix).
-			Scan(&resp.Summary.PrevPV, &resp.Summary.PrevUV, &pages)
+		return db.QueryRow(ctx, previousSQL, hostname, prev, since, prefix).
+			Scan(&resp.Summary.PrevPV, &resp.Summary.PrevUV)
 	})
 	run("timeseries", func() error {
 		rows, err := db.Query(ctx, timeseriesSQL, hostname, since, until, prefix)
@@ -290,38 +363,6 @@ func dashboardAPI(w http.ResponseWriter, r *http.Request) {
 			}
 			item.Date = date.Format("2006-01-02")
 			resp.Timeseries = append(resp.Timeseries, item)
-		}
-		return rows.Err()
-	})
-	run("sections", func() error {
-		// A path "/a/b" splits on "/" into "", "a", "b": the segment below
-		// a prefix of n segments is part n+2.
-		rows, err := db.Query(ctx, sectionsSQL, hostname, since, until, prefix, strings.Count(prefix, "/")+2)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var item SectionItem
-			if err := rows.Scan(&item.Section, &item.PV, &item.UV, &item.Pages); err != nil {
-				return err
-			}
-			resp.Sections = append(resp.Sections, item)
-		}
-		return rows.Err()
-	})
-	run("paths", func() error {
-		rows, err := db.Query(ctx, pathsSQL, hostname, since, until, prefix)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var item PathItem
-			if err := rows.Scan(&item.Path, &item.PV, &item.UV); err != nil {
-				return err
-			}
-			resp.Paths = append(resp.Paths, item)
 		}
 		return rows.Err()
 	})
