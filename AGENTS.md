@@ -32,6 +32,7 @@ HTTP Server (urlstat.go)
 ├── /urlstat/dashboard/api → The dashboard's data as JSON (dashboard.go)
 ├── /urlstat/dashboard/session → Who is signed in (auth.go)
 ├── /urlstat/dashboard/cleanup → Preview or delete visits, signed in only (cleanup.go)
+├── /urlstat/dashboard/sources → List, allow or stop counting a source, signed in only (sources.go)
 ├── /urlstat/client.js → Static JS client
 └── GitHub badge mode  → github.go + renderer.go
 ```
@@ -42,7 +43,7 @@ HTTP Server (urlstat.go)
 
 **Managing the statistics**: deleting visits takes a latere login, the one the main site and the blog use. The dashboard loads `https://changkun.de/login-sdk.js` (served by changkun/main), which runs PKCE against auth.latere.ai and keeps the access token in the origin's local storage, so being signed in on changkun.de is being signed in on the dashboard. Signing in from the dashboard itself needs `https://changkun.de/urlstat/dashboard` among the redirect URIs of the `changkun-blog` client. The server verifies the token against the issuer's JWKS (`auth.go`, with `latere.ai/x/pkg/authkit`) and then checks `AUTH_ALLOWED_PRINCIPALS`: a valid token proves identity, not the right to delete, and with no allowlist nobody is admitted. `POST /urlstat/dashboard/cleanup` takes `{hostname, paths}` or `{hostname, below, prefix}` and only counts what it would delete unless `confirm` is set; it deletes over all time, not the period shown.
 
-**Access control**: Domain whitelist in `allowed.yml`. GitHub mode validates requests from GitHub's camo proxy. The `-s` flag enables production mode (disables localhost).
+**Access control**: who may be counted is the `sources` table: sites (by host, with the port if there is one) and GitHub accounts. `allowed.yml` only fills it the first time, when it is empty; after that the list is changed in the dashboard's Sources dialog (`sources.go`, behind the login), and a change applies at once because the list is also held in memory (reloaded every minute). A source is matched whole: it used to be a substring match, which let `https://changkun.de.example.com` pass for `https://changkun.de`. Sources that were turned away are remembered in memory since the service started (at most 200) so that the dialog can offer them. GitHub mode also validates requests from GitHub's camo proxy. With `production: false` in `allowed.yml`, a page on localhost may report.
 
 ## Database Schema
 
@@ -59,7 +60,7 @@ CREATE TABLE visits (
 );
 ```
 
-Indexes are defined in `migrations/001_initial.sql`.
+Indexes are defined in `migrations/001_initial.sql`. `migrations/002_sources.sql` adds the `sources` table; the service applies it itself when it starts.
 
 ## Deployment
 

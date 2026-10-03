@@ -57,6 +57,13 @@ func init() {
 		l.Fatalf("cannot ping database: %v", err)
 	}
 	log.Printf("connected to database %v", dbURI)
+
+	// Who may be counted. allowed.yml was read by allowed.go's init, which
+	// runs before this one.
+	if err := setupSources(ctx, source); err != nil {
+		l.Fatalf("cannot set up the sources: %v", err)
+	}
+	go refreshSources()
 }
 
 func main() {
@@ -69,6 +76,7 @@ func main() {
 	latere := newLatereVerifier(l)
 	r.HandleFunc("/urlstat/dashboard/session", session(latere))
 	r.Handle("/urlstat/dashboard/cleanup", admin(latere, http.HandlerFunc(cleanupAPI)))
+	r.Handle("/urlstat/dashboard/sources", admin(latere, http.HandlerFunc(sourcesAPI)))
 	r.HandleFunc("/urlstat/client.js", func(w http.ResponseWriter, r *http.Request) {
 		f, _ := publicFS.Open("client.js")
 		b, _ := io.ReadAll(f)

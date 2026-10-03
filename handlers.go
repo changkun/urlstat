@@ -40,10 +40,14 @@ const urlstatCookieVid = "urlstat_vid"
 // is distributed from /urlstat/client.js endpoint.
 func recording(w http.ResponseWriter, r *http.Request) {
 	if origin := r.Header.Get("Origin"); origin != "" {
-		if source.isAllowed(origin, true) {
+		if sources.allowsOrigin(origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "urlstat-ua, urlstat-url")
+		} else {
+			// A browser stops here: without these headers it never sends
+			// the visit, so this is where a site not on the list is seen.
+			sources.refuse(kindSite, origin)
 		}
 	}
 	if r.Method == "OPTIONS" {
@@ -75,7 +79,8 @@ func recording(w http.ResponseWriter, r *http.Request) {
 
 	// Double check origin, only allow expected
 	ori := fmt.Sprintf("%s://%s", u.Scheme, u.Host)
-	if !source.isAllowed(ori, true) {
+	if !sources.allowsOrigin(ori) {
+		sources.refuse(kindSite, ori)
 		err = errors.New("origin not allowed")
 		return
 	}

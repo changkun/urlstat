@@ -29,11 +29,12 @@ button, select, input { font: inherit; color: inherit; }
 main { max-width: 1160px; margin: 0 auto; padding: 14px 16px 28px; }
 [hidden] { display: none !important; }
 
-.top { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; margin-bottom: 10px; }
 .top h1 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
 .top p { margin: 0; color: var(--ink-2); }
-.top .who { margin-left: auto; display: flex; align-items: baseline; gap: 12px; color: var(--ink-2); min-width: 0; }
-.top .who span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.top .who, #who { display: flex; align-items: baseline; gap: 10px; color: var(--ink-2); min-width: 0; }
+.top .who { margin-left: auto; }
+.top .who .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 44vw; }
 .top a { color: var(--ink-2); text-decoration: none; }
 .top a:hover { color: var(--ink); text-decoration: underline; }
 
@@ -136,11 +137,27 @@ dialog { border: 1px solid var(--border); border-radius: 10px; background: var(-
 dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
 dialog h3 { margin: 0 0 6px; font-size: 15px; font-weight: 650; }
 dialog p { margin: 0; color: var(--ink-2); }
-dialog ul { margin: 10px 0 0; padding: 0; list-style: none; max-height: 190px; overflow: auto; border-top: 1px solid var(--grid); }
-dialog li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
-dialog li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-dialog li.rest { color: var(--ink-2); }
+#confirm ul { margin: 10px 0 0; padding: 0; list-style: none; max-height: 190px; overflow: auto; border-top: 1px solid var(--grid); }
+#confirm li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+#confirm li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#confirm li.rest { color: var(--ink-2); }
 dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
+/* Who is counted, for whoever is signed in and allowed to change it. */
+#sources { width: min(640px, calc(100vw - 32px)); padding: 0; }
+.dlg-head { display: flex; align-items: center; gap: 10px; padding: 14px 18px 6px; }
+.dlg-head h3 { flex: 1; margin: 0; }
+.dlg-body { padding: 0 18px 16px; max-height: min(72vh, 680px); overflow: auto; }
+.src h4 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 16px 0 6px; font-size: 13px; font-weight: 650; }
+.src h4 .count { font-weight: 400; color: var(--ink-2); }
+.src .add { margin-left: auto; display: flex; gap: 6px; }
+.src .add input { height: 26px; width: 180px; max-width: 46vw; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--page); }
+.src ul { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--grid); }
+.src li { display: flex; align-items: center; gap: 12px; min-height: 30px; padding: 2px 0; border-bottom: 1px solid var(--grid); }
+.src li .v { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.src li .n, .src .none { color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.src .msg { display: flex; align-items: center; gap: 10px; min-height: 26px; margin-top: 10px; color: var(--ink-2); }
+.src .msg.error { color: var(--down); }
 
 @media (max-width: 820px) {
   .tiles { grid-template-columns: repeat(2, 1fr); }
@@ -218,6 +235,15 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   <p id="c-text"></p>
   <ul id="c-list"></ul>
   <div class="actions"><button class="btn" id="c-cancel">Cancel</button><button class="btn danger" id="c-ok">Delete</button></div>
+</dialog>
+
+<dialog id="sources" aria-labelledby="s-title">
+  <div class="dlg-head"><h3 id="s-title">Sources</h3><button class="btn" id="s-close">Close</button></div>
+  <div class="dlg-body src">
+    <p>The sites and GitHub accounts whose visits are counted. A change applies at once. Removing one stops the counting and keeps the visits it already has.</p>
+    <div id="s-body"></div>
+    <div class="msg" id="s-msg" role="status"></div>
+  </div>
 </dialog>
 
 <!-- The changkun.de login, shared with the main site and the blog. Where
@@ -550,8 +576,8 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   function renderWho() {
     if (!auth) { $('who').replaceChildren(); return; }
     const out = el('button', { class: 'link', text: 'Sign out', onclick: () => { auth.logout(); checkSession(); } });
-    if (state.admin) $('who').replaceChildren(el('span', { text: state.who, title: state.who }), ' ', out);
-    else if (state.denied) $('who').replaceChildren(el('span', { text: 'Signed in, without the right to clean up' }), ' ', out);
+    if (state.admin) $('who').replaceChildren(el('span', { class: 'name', text: state.who, title: state.who }), el('button', { class: 'btn', text: 'Sources…', onclick: openSources }), out);
+    else if (state.denied) $('who').replaceChildren(el('span', { class: 'name', text: 'Signed in, without the right to manage' }), out);
     else $('who').replaceChildren(el('button', { class: 'link', text: 'Sign in', onclick: () => {
       // The login comes back to this page without its query; keep it.
       sessionStorage.setItem('urlstat-return', location.search);
@@ -595,6 +621,70 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
       status('Could not clean up: ' + e.message, true);
     }
   }
+
+  // ---- Sources: who is counted, and who was turned away.
+  async function sourcesCall(method, body) {
+    const t = await token();
+    const r = await fetch('/urlstat/dashboard/sources', {
+      method, headers: { Authorization: 'Bearer ' + t, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined,
+    });
+    if (r.status === 401) { checkSession(); throw new Error('sign in again to manage the sources'); }
+    if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
+    return r.json();
+  }
+  function ago(iso) {
+    const s = (Date.now() - Date.parse(iso)) / 1000;
+    if (s < 90) return 'just now';
+    if (s < 5400) return Math.round(s / 60) + ' minutes ago';
+    if (s < 129600) return Math.round(s / 3600) + ' hours ago';
+    return Math.round(s / 86400) + ' days ago';
+  }
+  function sourcesMsg(text, error, undo) {
+    $('s-msg').classList.toggle('error', !!error);
+    $('s-msg').replaceChildren(text, ...(undo ? [el('button', { class: 'btn', text: 'Undo', onclick: undo })] : []));
+  }
+  function renderSources(d) {
+    const section = (kind, title, list, placeholder) => {
+      const input = el('input', { type: 'text', placeholder, 'aria-label': 'Add to ' + title.toLowerCase(), autocapitalize: 'off', autocomplete: 'off', spellcheck: 'false' });
+      const add = () => { if (input.value.trim()) changeSource('POST', kind, input.value); };
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+      const rows = list.map((s) => el('li', {},
+        el('span', { class: 'v', text: s.value, title: 'Added' + (s.added_by ? ' by ' + s.added_by : '') + ' on ' + dayLabel(new Date(s.added_at), true) }),
+        el('span', { class: 'n', text: s.pv ? fmt.format(s.pv) + (s.pv === 1 ? ' view' : ' views') : 'no views' }),
+        el('button', { class: 'link', text: 'Remove', 'aria-label': 'Remove ' + s.value, onclick: () => changeSource('DELETE', kind, s.value) })));
+      return [
+        el('h4', {}, title, el('span', { class: 'count', text: `${list.length}, with their views in the last ${d.days} days` }), el('span', { class: 'add' }, input, el('button', { class: 'btn', text: 'Add', onclick: add }))),
+        el('ul', {}, ...rows),
+      ];
+    };
+    const refused = d.refused.map((r) => el('li', {},
+      el('span', { class: 'v', text: r.value, title: r.value }),
+      el('span', { class: 'n', text: `${r.kind === 'site' ? 'site' : 'GitHub account'} · ${fmt.format(r.attempts)} ${r.attempts === 1 ? 'attempt' : 'attempts'} · ${ago(r.last_seen)}` }),
+      el('button', { class: 'btn', text: 'Allow', 'aria-label': 'Allow ' + r.value, onclick: () => changeSource('POST', r.kind, r.value) })));
+    $('s-body').replaceChildren(
+      ...section('site', 'Sites', d.sites, 'example.com'),
+      ...section('github', 'GitHub accounts', d.github, 'account'),
+      el('h4', {}, 'Seen but not allowed', el('span', { class: 'count', text: 'since the service last started' })),
+      refused.length ? el('ul', {}, ...refused) : el('p', { class: 'none', text: 'Nobody has been turned away.' }));
+  }
+  async function changeSource(method, kind, value) {
+    try {
+      sourcesMsg('Saving…');
+      const d = await sourcesCall(method, { kind, value });
+      renderSources(d);
+      if (method === 'DELETE') sourcesMsg(d.changed + ' is no longer counted.', false, () => changeSource('POST', kind, d.changed));
+      else sourcesMsg(d.changed + ' is now counted.');
+    } catch (e) {
+      sourcesMsg('Could not change the sources: ' + e.message, true);
+    }
+  }
+  async function openSources() {
+    $('s-body').replaceChildren(el('p', { class: 'none', text: 'Loading…' }));
+    sourcesMsg('');
+    $('sources').showModal();
+    try { renderSources(await sourcesCall('GET')); } catch (e) { $('s-body').replaceChildren(); sourcesMsg('Could not load the sources: ' + e.message, true); }
+  }
+  $('s-close').addEventListener('click', () => $('sources').close());
 
   $('host').addEventListener('change', (e) => go({ host: e.target.value, prefix: '' }));
   $('days').addEventListener('click', (e) => { const d = +e.target.dataset?.days; if (d && (d !== state.days || state.from)) go({ days: d, from: '', to: '' }); });
