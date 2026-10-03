@@ -95,6 +95,7 @@ main { max-width: 1160px; margin: 0 auto; padding: 14px 16px 28px; }
 .empty { padding: 28px 14px; text-align: center; color: var(--ink-2); }
 
 .cols { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 8fr); gap: 10px; align-items: start; }
+.stack { display: grid; gap: 10px; min-width: 0; }
 table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 th, td { padding: 5px 0 5px 14px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 th:last-child, td:last-child { padding-right: 14px; }
@@ -208,10 +209,16 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   </figure>
 
   <div class="cols live">
-    <section class="card" aria-label="Sections">
-      <div class="head"><h2>Sections</h2><span class="count" id="sec-count"></span></div>
-      <div id="sections"></div>
-    </section>
+    <div class="stack">
+      <section class="card" aria-label="Sections">
+        <div class="head"><h2>Sections</h2><span class="count" id="sec-count"></span></div>
+        <div id="sections"></div>
+      </section>
+      <section class="card" aria-label="Where visits came from">
+        <div class="head"><h2>Came from</h2><span class="count" id="ref-count"></span></div>
+        <div id="referrers"></div>
+      </section>
+    </div>
     <section class="card" aria-label="Pages">
       <div class="head"><h2>Pages</h2><span class="count" id="page-count"></span>
         <div class="right">
@@ -323,7 +330,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   }
 
   function render() {
-    renderFilters(); renderTiles(); fillDays(); renderChart(); renderDaily(); renderSections(); renderPages();
+    renderFilters(); renderTiles(); fillDays(); renderChart(); renderDaily(); renderSections(); renderReferrers(); renderPages();
   }
 
   const utc = (key) => new Date(key + 'T00:00:00Z');
@@ -497,7 +504,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
     const list = data.sections;
     $('sec-count').textContent = list.length ? (state.prefix ? 'under ' + state.prefix : 'by first part of the path') : '';
     if (!list.length) { $('sections').replaceChildren(el('div', { class: 'empty', text: 'No visits in this period.' })); return; }
-    const rows = (state.allSections ? list : list.slice(0, 12)).map((s) => {
+    const rows = (state.allSections ? list : list.slice(0, 8)).map((s) => {
       // An empty part is the page at the prefix itself, which has nothing below it.
       const own = s.section === '', to = state.prefix + '/' + s.section;
       const name = own
@@ -508,6 +515,28 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
     });
     const more = !state.allSections && list.length > rows.length ? el('div', { class: 'more' }, el('button', { class: 'link', text: 'Show all ' + fmt.format(list.length) + ' sections', onclick: () => { state.allSections = true; renderSections(); } })) : null;
     $('sections').replaceChildren(el('table', {}, head('Section'), el('tbody', {}, ...rows)), ...(more ? [more] : []));
+  }
+
+  // Where the visits came from: the site that linked here, or a campaign
+  // tag in the address. Only visits that recorded it are counted, which a
+  // site's older visits did not.
+  function renderReferrers() {
+    const since = data.referrers_since;
+    const list = data.referrers.filter((r) => r.source !== 'internal'), internal = data.referrers.find((r) => r.source === 'internal');
+    const began = since ? dayLabel(utc(since), true) : '';
+    $('ref-count').textContent = since && since > data.from ? 'recorded since ' + dayLabel(utc(since), since.slice(0, 4) !== data.to.slice(0, 4)) : '';
+    if (!list.length && !internal) {
+      $('referrers').replaceChildren(el('div', { class: 'empty', text: since
+        ? 'No visit in this period recorded where it came from. Recording began on ' + began + '.'
+        : 'Not recorded for this site yet. It begins with the next visit to a page that loads the current counting script.' }));
+      return;
+    }
+    const rows = list.map((r) => el('tr', {},
+      el('td', r.source ? { text: r.source, title: r.source } : { text: 'Direct', title: 'No site named: a typed or saved address, or an app that does not say where it was opened from' }),
+      el('td', { class: 'num', text: fmt.format(r.pv) }), el('td', { class: 'num', text: fmt.format(r.uv) })));
+    const table = list.length ? el('table', {}, el('thead', {}, el('tr', {}, el('th', { text: 'From' }), el('th', { class: 'num', text: 'Arrivals' }), el('th', { class: 'num', text: 'Visitors' }))), el('tbody', {}, ...rows)) : null;
+    const within = internal ? el('div', { class: 'more', text: `${fmt.format(internal.pv)} ${internal.pv === 1 ? 'view' : 'views'} came from another page of this site.` }) : null;
+    $('referrers').replaceChildren(...[table, within].filter(Boolean));
   }
 
   function renderPages() {
