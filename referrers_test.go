@@ -120,6 +120,12 @@ func TestReferrers(t *testing.T) {
 		t.Errorf("under /book: %+v, want linkedin.com, direct and internal", got)
 	}
 
+	// The visits' user agent was read as they were recorded.
+	var read int64
+	if err := db.QueryRow(ctx, `SELECT COUNT(*) FROM agents WHERE hash = md5('test') AND rules = $1`, agentRules).Scan(&read); err != nil || read != 1 {
+		t.Errorf("the user agent was stored %d times (%v), want once", read, err)
+	}
+
 	// What was sent is kept as it was, and an older script leaves it unknown.
 	var kept, unknown int64
 	if err := db.QueryRow(ctx, `SELECT COUNT(*) FILTER (WHERE referer = 'https://www.linkedin.com/feed/'),

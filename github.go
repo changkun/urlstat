@@ -81,6 +81,7 @@ func githubMode(w http.ResponseWriter, r *http.Request) (err error) {
 	if cookieVid == "" && vid != "" {
 		w.Header().Set("Set-Cookie", urlstatCookieVid+"="+vid)
 	}
+	rememberAgent(r.Context(), ua)
 
 	pv, _, err := countVisit(r.Context(), hostname, repoPath, "page")
 	if err != nil {

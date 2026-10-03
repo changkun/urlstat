@@ -25,9 +25,10 @@ var agentsSchema string
 // unreadAgentsSQL finds the user agent strings of a period that the current
 // rules have not read yet.
 const unreadAgentsSQL = `
-	SELECT DISTINCT v.ua FROM visits v
-	WHERE ` + scopeSQL + ` AND v.ua IS NOT NULL
-		AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.hash = md5(v.ua) AND a.rules = $5)`
+	SELECT d.ua FROM (
+		SELECT DISTINCT v.ua FROM visits v WHERE ` + scopeSQL + ` AND v.ua IS NOT NULL
+	) d
+	WHERE NOT EXISTS (SELECT 1 FROM agents a WHERE a.hash = md5(d.ua) AND a.rules = $5)`
 
 const storeAgentsSQL = `
 	INSERT INTO agents (hash, ua, browser, os, device, rules)
@@ -35,6 +36,69 @@ const storeAgentsSQL = `
 	FROM unnest($1::text[], $2::text[], $3::text[], $4::text[]) AS t(u, b, o, d)
 	ON CONFLICT (hash) DO UPDATE
 	SET browser = EXCLUDED.browser, os = EXCLUDED.os, device = EXCLUDED.device, rules = EXCLUDED.rules`
+
+// agentsRead is how far back each host's user agent strings are known to
+// have been read, since this process started. A visit's string is read when
+// the visit is recorded (rememberAgent), so only what was recorded before
+// needs looking for, and each stretch of a host's past only once.
+var agentsRead = struct {
+	sync.Mutex
+	since map[string]time.Time // host -> everything from here on has been read
+	known map[string]bool      // strings read by this process
+}{since: map[string]time.Time{}, known: map[string]bool{}}
+
+// knownAgentsLimit bounds the strings remembered as read; past it the
+// memory starts over, which costs a few repeated writes.
+const knownAgentsLimit = 50000
+
+// rememberAgent reads the user agent string of a visit being recorded, the
+// first time this process sees it.
+func rememberAgent(ctx context.Context, ua string) {
+	if ua == "" {
+		return
+	}
+	agentsRead.Lock()
+	seen := agentsRead.known[ua]
+	if !seen {
+		if len(agentsRead.known) >= knownAgentsLimit {
+			clear(agentsRead.known)
+		}
+		agentsRead.known[ua] = true
+	}
+	agentsRead.Unlock()
+	if seen {
+		return
+	}
+	c := classifyUA(ua)
+	if _, err := db.Exec(ctx, storeAgentsSQL, []string{ua}, []string{c.Browser}, []string{c.OS}, []string{c.Device}, agentRules); err != nil {
+		l.Printf("failed to store a user agent: %v", err)
+	}
+}
+
+// readAgentsSince makes sure the user agent strings of a host's visits
+// from since on have been read, looking only at the stretch that has not
+// been looked at before.
+func readAgentsSince(ctx context.Context, hostname string, since time.Time) error {
+	agentsRead.Lock()
+	read, ok := agentsRead.since[hostname]
+	agentsRead.Unlock()
+	until := time.Now().UTC()
+	if ok {
+		if !since.Before(read) {
+			return nil
+		}
+		until = read
+	}
+	if err := readAgents(ctx, hostname, period{since: since, until: until}, ""); err != nil {
+		return err
+	}
+	agentsRead.Lock()
+	if cur, ok := agentsRead.since[hostname]; !ok || since.Before(cur) {
+		agentsRead.since[hostname] = since
+	}
+	agentsRead.Unlock()
+	return nil
+}
 
 // readAgents reads the user agent strings of a period that have not been
 // read yet, so that the visits can be grouped by what they were.
@@ -134,7 +198,9 @@ func audienceAPI(w http.ResponseWriter, r *http.Request) {
 	dashboardCache.Lock()
 	c, ok := dashboardCache.pages[key]
 	dashboardCache.Unlock()
-	if ok && time.Since(c.at) < dashboardTTL(p.days) {
+	// What people used shifts slowly, and a long period is slow to read, so
+	// it is kept five times as long as the rest.
+	if ok && time.Since(c.at) < 5*dashboardTTL(p.days) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(c.val)
 		return
@@ -143,7 +209,7 @@ func audienceAPI(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
 	start := time.Now()
-	if err := readAgents(ctx, hostname, p, prefix); err != nil {
+	if err := readAgentsSince(ctx, hostname, p.since); err != nil {
 		http.Error(w, fmt.Sprintf("failed to read the user agents: %v", err), http.StatusInternalServerError)
 		return
 	}
