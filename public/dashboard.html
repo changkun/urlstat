@@ -124,6 +124,19 @@ td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: elli
 .scroll { max-height: 232px; overflow: auto; margin-top: 4px; }
 .foot { margin-top: 12px; color: var(--ink-2); font-size: 12px; }
 
+/* Visitors one by one, for whoever is signed in and allowed to see them. */
+.tag { display: inline-block; padding: 0 5px; margin-left: 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 11px; line-height: 16px; color: var(--ink-2); vertical-align: 1px; }
+tr.pick { cursor: pointer; }
+#visitors td.when, #visitors th.when { width: 132px; }
+#visitors td.addr, #visitors th.addr { width: 26%; }
+#visitor { width: min(760px, calc(100vw - 32px)); padding: 0; }
+#visitor .facts { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 2px 0 10px; }
+#visitor .facts b { font-weight: 650; }
+#visitor .agents { margin: 0 0 10px; padding: 0; list-style: none; color: var(--ink-2); font-size: 12px; }
+#visitor .agents li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#visitor td.when { width: 150px; color: var(--ink-2); }
+#visitor td.from { width: 30%; color: var(--ink-2); }
+
 /* Cleaning up, for whoever is signed in and allowed to. */
 .btn { height: 26px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); cursor: pointer; white-space: nowrap; }
 .btn:hover:not(:disabled) { background: var(--wash); }
@@ -167,6 +180,13 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   td.bar, th.bar { display: none; }
   .tile .note { white-space: normal; }
   #pages td:nth-last-child(4) { white-space: normal; overflow-wrap: anywhere; }
+  /* A phone keeps when, who and how much; the rest is in the visitor's detail. */
+  #visitors td:nth-child(3), #visitors th:nth-child(3), #visitors td:nth-child(4), #visitors th:nth-child(4) { display: none; }
+  #visitors td.when, #visitors th.when { width: 104px; }
+  #visitors td.addr, #visitors th.addr { width: auto; }
+  #visitors td.num, #visitors th.num { width: 60px; }
+  #visitor td.from, #visitor th.from { display: none; }
+  #visitor td.when { width: 118px; }
 }
 </style>
 </head>
@@ -218,6 +238,12 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
         <div class="head"><h2>Came from</h2><span class="count" id="ref-count"></span></div>
         <div id="referrers"></div>
       </section>
+      <section class="card" aria-label="What visitors used">
+        <div class="head"><h2>Used</h2><span class="count">by people</span>
+          <div class="right"><div class="seg" id="aud-seg" role="group" aria-label="Group by"><button data-by="devices">Device</button><button data-by="systems">System</button><button data-by="browsers">Browser</button></div></div>
+        </div>
+        <div id="audience"></div>
+      </section>
     </div>
     <section class="card" aria-label="Pages">
       <div class="head"><h2>Pages</h2><span class="count" id="page-count"></span>
@@ -234,6 +260,11 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
     </section>
   </div>
 
+  <section class="card live" id="visitors-card" aria-label="Visitors" style="margin-top:10px" hidden>
+    <div class="head"><h2>Visitors</h2><span class="count" id="vis-count"></span></div>
+    <div id="visitors"></div>
+  </section>
+
   <p class="foot">Visitors are distinct IP addresses over the period. Days are in UTC, and today is still being counted. Figures can be a few minutes behind.</p>
 </main>
 
@@ -242,6 +273,11 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   <p id="c-text"></p>
   <ul id="c-list"></ul>
   <div class="actions"><button class="btn" id="c-cancel">Cancel</button><button class="btn danger" id="c-ok">Delete</button></div>
+</dialog>
+
+<dialog id="visitor" aria-labelledby="v-title">
+  <div class="dlg-head"><h3 id="v-title"></h3><button class="btn" id="v-delete">Delete this visitor's visits…</button><button class="btn" id="v-close">Close</button></div>
+  <div class="dlg-body" id="v-body"></div>
 </dialog>
 
 <dialog id="sources" aria-labelledby="s-title">
@@ -266,8 +302,10 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   const state = {
     host: '', days: 30, from: '', to: '', prefix: '', sort: 'pv', q: '', all: false, allSections: false, table: false,
     admin: false, who: '', denied: false, cleaning: false, selected: new Set(),
+    by: 'devices', allVisitors: false,
   };
   let data = null, series = [], seq = 0, hover = -1, drag = null;
+  let audience = null, visitors = null;
 
   // Text from the database (hosts, paths) only ever enters the page as text.
   function el(tag, attrs, ...kids) {
@@ -316,8 +354,11 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
       [state.from, state.to] = d.custom ? [d.from, d.to] : ['', ''];
       state.all = false; state.allSections = false;
       writeURL(push);
+      audience = null; visitors = null; state.allVisitors = false;
       render();
       status('');
+      loadAudience(mine);
+      loadVisitors(mine);
     } catch (e) {
       if (mine === seq) status('Could not load the statistics: ' + e.message, true);
     } finally {
@@ -330,7 +371,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   }
 
   function render() {
-    renderFilters(); renderTiles(); fillDays(); renderChart(); renderDaily(); renderSections(); renderReferrers(); renderPages();
+    renderFilters(); renderTiles(); fillDays(); renderChart(); renderDaily(); renderSections(); renderReferrers(); renderAudience(); renderVisitors(); renderPages();
   }
 
   const utc = (key) => new Date(key + 'T00:00:00Z');
@@ -539,6 +580,115 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
     $('referrers').replaceChildren(...[table, within].filter(Boolean));
   }
 
+  // The query of the slice in view, for the parts that are fetched apart.
+  function scopeQuery() {
+    const p = new URLSearchParams({ hostname: state.host });
+    if (state.from) { p.set('from', state.from); p.set('to', state.to); } else p.set('days', state.days);
+    if (state.prefix) p.set('prefix', state.prefix);
+    return p;
+  }
+
+  // What people used. It is fetched after the rest: it reads every visit's
+  // browser string, which is the slowest thing on the page.
+  async function loadAudience(mine) {
+    try {
+      const r = await fetch('/urlstat/dashboard/audience?' + scopeQuery());
+      if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
+      const d = await r.json();
+      if (mine !== seq) return;
+      audience = d;
+    } catch (e) {
+      if (mine !== seq) return;
+      audience = { error: e.message };
+    }
+    renderAudience();
+  }
+  const usedName = (by, name) => !name ? 'Unknown' : by === 'devices' ? name[0].toUpperCase() + name.slice(1) : name === 'MicroMessenger' ? 'WeChat' : name;
+  function renderAudience() {
+    for (const b of $('aud-seg').children) b.setAttribute('aria-pressed', String(b.dataset.by === state.by));
+    if (!audience) { $('audience').replaceChildren(el('div', { class: 'empty', text: 'Loading…' })); return; }
+    if (audience.error) { $('audience').replaceChildren(el('div', { class: 'empty', text: 'Could not load: ' + audience.error })); return; }
+    const list = audience[state.by], all = audience.people.pv + audience.crawlers.pv;
+    if (!all) { $('audience').replaceChildren(el('div', { class: 'empty', text: 'No visits in this period.' })); return; }
+    const rows = list.slice(0, 8).map((r) => el('tr', {}, el('td', { text: usedName(state.by, r.name), title: r.name }), el('td', { class: 'num', text: fmt.format(r.pv) }), el('td', { class: 'num', text: fmt.format(r.uv) })));
+    const table = rows.length ? el('table', {}, el('thead', {}, el('tr', {}, el('th', { text: { devices: 'Device', systems: 'System', browsers: 'Browser' }[state.by] }), el('th', { class: 'num', text: 'Views' }), el('th', { class: 'num', text: 'Visitors' }))), el('tbody', {}, ...rows)) : null;
+    const pct = (a, b) => (b ? (a / b * 100).toFixed(a / b < 0.1 ? 1 : 0) : '0') + '%';
+    const notes = [
+      audience.crawlers.pv ? `Crawlers made ${fmt.format(audience.crawlers.pv)} of the ${fmt.format(all)} views (${pct(audience.crawlers.pv, all)}), from ${fmt.format(audience.crawlers.uv)} ${audience.crawlers.uv === 1 ? 'address' : 'addresses'}. They are not in this list.` : 'No crawlers in this period.',
+      audience.visitors ? `${fmt.format(audience.returning)} of ${fmt.format(audience.visitors)} addresses (${pct(audience.returning, audience.visitors)}) came back on another day.` : '',
+    ].filter(Boolean).map((t) => el('div', { class: 'more', text: t }));
+    $('audience').replaceChildren(...[table, ...notes].filter(Boolean));
+  }
+
+  // Visitors one by one: the latest addresses, what each read, and a way to
+  // remove one that turns out to be a machine.
+  async function authed(path, init) {
+    const t = await token();
+    const r = await fetch(path, { ...init, headers: { Authorization: 'Bearer ' + t, ...(init && init.headers) } });
+    if (r.status === 401) { checkSession(); throw new Error('sign in again'); }
+    if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
+    return r.json();
+  }
+  async function loadVisitors(mine) {
+    if (!state.admin || !data) return;
+    try {
+      const d = await authed('/urlstat/dashboard/visitors?' + scopeQuery());
+      if (mine !== seq) return;
+      visitors = d.visitors;
+    } catch (e) {
+      if (mine !== seq) return;
+      visitors = { error: e.message };
+    }
+    renderVisitors();
+  }
+  const clock = (iso) => new Date(iso).toLocaleString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' UTC';
+  const using = (v) => [usedName('browsers', v.browser), v.os].filter(Boolean).join(' on ') || 'Unknown';
+  const fromName = (f) => f == null ? '–' : f === '' ? 'Direct' : f === 'internal' ? 'This site' : f;
+  function renderVisitors() {
+    $('visitors-card').hidden = !state.admin;
+    if (!state.admin) return;
+    if (!visitors) { $('vis-count').textContent = ''; $('visitors').replaceChildren(el('div', { class: 'empty', text: 'Loading…' })); return; }
+    if (visitors.error) { $('vis-count').textContent = ''; $('visitors').replaceChildren(el('div', { class: 'empty', text: 'Could not load the visitors: ' + visitors.error })); return; }
+    $('vis-count').textContent = visitors.length ? `the latest ${fmt.format(visitors.length)} addresses in this period, shown to you only` : '';
+    if (!visitors.length) { $('visitors').replaceChildren(el('div', { class: 'empty', text: 'No visits in this period.' })); return; }
+    const shown = state.allVisitors ? visitors : visitors.slice(0, 15);
+    const rows = shown.map((v) => el('tr', { class: 'pick', tabindex: '0', title: 'Show what ' + v.ip + ' read',
+      onclick: () => openVisitor(v.ip), onkeydown: (e) => { if (e.key === 'Enter') openVisitor(v.ip); } },
+      el('td', { class: 'when', text: ago(v.last), title: clock(v.last) }),
+      el('td', { class: 'addr' }, v.ip, v.device === 'bot' ? el('span', { class: 'tag', text: 'crawler' }) : null, v.before ? el('span', { class: 'tag', text: 'seen before' }) : null),
+      el('td', { text: using(v), title: using(v) }),
+      el('td', { text: fromName(v.came_from) }),
+      el('td', { class: 'num', text: fmt.format(v.pv) }), el('td', { class: 'num', text: fmt.format(v.pages) })));
+    const more = visitors.length > shown.length ? el('div', { class: 'more' }, el('button', { class: 'link', text: 'Show all ' + fmt.format(visitors.length), onclick: () => { state.allVisitors = true; renderVisitors(); } })) : null;
+    $('visitors').replaceChildren(el('table', {}, el('thead', {}, el('tr', {},
+      el('th', { class: 'when', text: 'Last seen' }), el('th', { class: 'addr', text: 'Address' }), el('th', { text: 'Using' }), el('th', { text: 'Came from' }),
+      el('th', { class: 'num', text: 'Views' }), el('th', { class: 'num', text: 'Pages' }))), el('tbody', {}, ...rows)), ...(more ? [more] : []));
+  }
+  let visitorIP = '';
+  async function openVisitor(ip) {
+    visitorIP = ip;
+    $('v-title').textContent = 'Visitor ' + ip;
+    $('v-body').replaceChildren(el('p', { text: 'Loading…' }));
+    $('visitor').showModal();
+    try {
+      const d = await authed('/urlstat/dashboard/visitor?' + new URLSearchParams({ hostname: state.host, ip }));
+      const fact = (n, what) => el('span', {}, el('b', { text: n }), ' ' + what);
+      const rows = d.visits.map((v) => el('tr', {},
+        el('td', { class: 'when', text: clock(v.time) }),
+        el('td', {}, el('a', { href: 'https://' + state.host + v.path, target: '_blank', rel: 'noopener', title: v.path, text: v.path })),
+        el('td', { class: 'from', text: fromName(v.came_from), title: v.referer || '' })));
+      $('v-body').replaceChildren(...[
+        el('div', { class: 'facts' }, fact(fmt.format(d.pv), d.pv === 1 ? 'view' : 'views'), fact(fmt.format(d.pages), d.pages === 1 ? 'page' : 'pages'), fact(fmt.format(d.days), d.days === 1 ? 'day' : 'days'),
+          d.first ? el('span', { text: 'first seen ' + clock(d.first) }) : null, d.last ? el('span', { text: 'last seen ' + clock(d.last) }) : null),
+        el('ul', { class: 'agents' }, ...d.agents.map((a) => el('li', { text: a, title: a }))),
+        el('table', {}, el('thead', {}, el('tr', {}, el('th', { class: 'when', text: 'When' }), el('th', { text: 'Page' }), el('th', { class: 'from', text: 'Came from' }))), el('tbody', {}, ...rows)),
+        d.pv > d.visits.length ? el('p', { class: 'hint', text: `The latest ${fmt.format(d.visits.length)} of ${fmt.format(d.pv)} views.` }) : null,
+      ].filter(Boolean));
+    } catch (e) {
+      $('v-body').replaceChildren(el('p', { text: 'Could not load the visitor: ' + e.message }));
+    }
+  }
+
   function renderPages() {
     const q = state.q.trim().toLowerCase(), cleaning = state.admin && state.cleaning;
     const all = data.paths.filter((p) => !q || p.path.toLowerCase().includes(q)).sort((a, b) => b[state.sort] - a[state.sort] || b.pv - a.pv);
@@ -600,7 +750,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
     }
     if (!state.admin) state.cleaning = false;
     renderWho();
-    if (data) renderPages();
+    if (data) { renderPages(); renderVisitors(); loadVisitors(seq); }
   }
   function renderWho() {
     if (!auth) { $('who').replaceChildren(); return; }
@@ -629,7 +779,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
       status('Counting…');
       const pre = await cleanup(req);
       status('');
-      if (!pre.pages) { status('Nothing to delete: ' + described + ' has no visits.'); return; }
+      if (!pre.pages) { status('Nothing to delete: ' + described + ' has no visits.'); return false; }
       $('c-title').textContent = `Delete ${fmt.format(pre.visits)} ${pre.visits === 1 ? 'visit' : 'visits'}?`;
       $('c-text').textContent = `${fmt.format(pre.pages)} ${pre.pages === 1 ? 'page' : 'pages'} on ${state.host}: ${described}. The visits are deleted for all time, not only for the period shown, and cannot be restored.`;
       const items = pre.examples.map((p) => el('li', {}, el('span', { text: p.path, title: p.path }), el('span', { text: fmt.format(p.pv) })));
@@ -640,14 +790,16 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
       dialog.showModal();
       $('c-cancel').focus();
       const ok = await new Promise((resolve) => dialog.addEventListener('close', () => resolve(dialog.returnValue === 'delete'), { once: true }));
-      if (!ok) return;
+      if (!ok) return false;
       status('Deleting…');
       const done = await cleanup({ ...req, confirm: true });
       state.selected.clear();
       await load(false);
       status(`Deleted ${fmt.format(done.visits)} ${done.visits === 1 ? 'visit' : 'visits'} of ${fmt.format(done.pages)} ${done.pages === 1 ? 'page' : 'pages'}.`);
+      return true;
     } catch (e) {
       status('Could not clean up: ' + e.message, true);
+      return false;
     }
   }
 
@@ -714,6 +866,11 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
     try { renderSources(await sourcesCall('GET')); } catch (e) { $('s-body').replaceChildren(); sourcesMsg('Could not load the sources: ' + e.message, true); }
   }
   $('s-close').addEventListener('click', () => $('sources').close());
+  $('v-close').addEventListener('click', () => $('visitor').close());
+  $('v-delete').addEventListener('click', async () => {
+    if (await confirmCleanup({ ip: visitorIP }, 'everything from ' + visitorIP)) $('visitor').close();
+  });
+  $('aud-seg').addEventListener('click', (e) => { const by = e.target.dataset?.by; if (by) { state.by = by; renderAudience(); } });
 
   $('host').addEventListener('change', (e) => go({ host: e.target.value, prefix: '' }));
   $('days').addEventListener('click', (e) => { const d = +e.target.dataset?.days; if (d && (d !== state.days || state.from)) go({ days: d, from: '', to: '' }); });

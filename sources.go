@@ -233,6 +233,9 @@ func setupSources(ctx context.Context, seed *allowed) error {
 	if _, err := db.Exec(ctx, cameFromSchema); err != nil {
 		return fmt.Errorf("failed to add where visits came from: %w", err)
 	}
+	if _, err := db.Exec(ctx, agentsSchema); err != nil {
+		return fmt.Errorf("failed to create the agents table: %w", err)
+	}
 	var n int64
 	if err := db.QueryRow(ctx, `SELECT COUNT(*) FROM sources`).Scan(&n); err != nil {
 		return fmt.Errorf("failed to count the sources: %w", err)

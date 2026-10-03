@@ -71,12 +71,15 @@ func main() {
 	r.HandleFunc("/urlstat", recording)
 	r.HandleFunc("/urlstat/dashboard", dashboard)
 	r.HandleFunc("/urlstat/dashboard/api", dashboardAPI)
+	r.HandleFunc("/urlstat/dashboard/audience", audienceAPI)
 	// Managing the statistics takes a latere login, the one the main site
 	// and the blog use.
 	latere := newLatereVerifier(l)
 	r.HandleFunc("/urlstat/dashboard/session", session(latere))
 	r.Handle("/urlstat/dashboard/cleanup", admin(latere, http.HandlerFunc(cleanupAPI)))
 	r.Handle("/urlstat/dashboard/sources", admin(latere, http.HandlerFunc(sourcesAPI)))
+	r.Handle("/urlstat/dashboard/visitors", admin(latere, http.HandlerFunc(visitorsAPI)))
+	r.Handle("/urlstat/dashboard/visitor", admin(latere, http.HandlerFunc(visitorAPI)))
 	r.HandleFunc("/urlstat/client.js", func(w http.ResponseWriter, r *http.Request) {
 		f, _ := publicFS.Open("client.js")
 		b, _ := io.ReadAll(f)
