@@ -644,18 +644,22 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   window.addEventListener('popstate', () => { readURL(); hover = -1; load(false); });
 
   (async () => {
+    let failed = '';
     if (auth) {
-      // Coming back from the login: finish it, then restore the view that
-      // was open when it began.
-      const returning = new URLSearchParams(location.search).has('code');
+      // Coming back from the login, signed in or refused: finish it, then
+      // restore the view that was open when it began.
+      const params = new URLSearchParams(location.search);
+      const returning = params.has('code') || params.has('error');
+      failed = params.get('error_description') || params.get('error') || '';
       try { await auth.handleCallback(); } catch (e) { /* a failed login leaves the page signed out */ }
       const back = sessionStorage.getItem('urlstat-return');
       sessionStorage.removeItem('urlstat-return');
       if (returning && back != null) history.replaceState(null, '', location.pathname + back);
     }
     readURL();
-    load(false);
     checkSession();
+    await load(false);
+    if (failed) status('Could not sign in: ' + failed, true);
   })();
 })();
 </script>
