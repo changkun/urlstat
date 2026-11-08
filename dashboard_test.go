@@ -5,11 +5,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"testing"
 	"time"
 )
@@ -177,6 +180,41 @@ func TestParsePeriod(t *testing.T) {
 		}
 		if got := parsePeriod(q, now); got != tt.want {
 			t.Errorf("%s: parsePeriod(%q) =\n\t%+v, want\n\t%+v", name, tt.query, got, tt.want)
+		}
+	}
+}
+
+// TestFonts checks that every typeface the dashboard asks for comes from
+// the binary as a woff2, and that nothing else is served under its path.
+func TestFonts(t *testing.T) {
+	page, err := fs.ReadFile(publicFS, "dashboard.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(page, []byte("fonts.googleapis.com")) || bytes.Contains(page, []byte("fonts.gstatic.com")) {
+		t.Error("the dashboard still asks Google for its fonts")
+	}
+	urls := regexp.MustCompile(`/urlstat/dashboard/fonts/[^)'"]+`).FindAll(page, -1)
+	if len(urls) == 0 {
+		t.Fatal("the dashboard names no font")
+	}
+	for _, u := range urls {
+		w := httptest.NewRecorder()
+		fonts(w, httptest.NewRequest(http.MethodGet, string(u), nil))
+		if w.Code != http.StatusOK || w.Header().Get("Content-Type") != "font/woff2" || w.Body.Len() == 0 {
+			t.Errorf("%s: status %d, type %q, %d bytes", u, w.Code, w.Header().Get("Content-Type"), w.Body.Len())
+		}
+	}
+	for _, u := range []string{
+		"/urlstat/dashboard/fonts/",
+		"/urlstat/dashboard/fonts/missing.woff2",
+		"/urlstat/dashboard/fonts/../dashboard.html",
+		"/urlstat/dashboard/fonts/inter-400-latin.woff2/x",
+	} {
+		w := httptest.NewRecorder()
+		fonts(w, httptest.NewRequest(http.MethodGet, u, nil))
+		if w.Code != http.StatusNotFound {
+			t.Errorf("%s: status %d, want 404", u, w.Code)
 		}
 	}
 }

@@ -70,6 +70,7 @@ func main() {
 	r := http.NewServeMux()
 	r.HandleFunc("/urlstat", recording)
 	r.HandleFunc("/urlstat/dashboard", dashboard)
+	r.HandleFunc("/urlstat/dashboard/fonts/", fonts)
 	r.HandleFunc("/urlstat/dashboard/api", dashboardAPI)
 	r.HandleFunc("/urlstat/dashboard/audience", audienceAPI)
 	// Managing the statistics takes a latere login, the one the main site

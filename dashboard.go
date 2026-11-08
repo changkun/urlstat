@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/url"
@@ -467,4 +468,23 @@ func dashboard(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	io.Copy(w, f)
+}
+
+// fonts serves the dashboard's typeface, Inter, from the binary, as redir
+// serves it, so that a reader's browser asks no one else for it. Only the
+// files under public/fonts are served, and they never change under a name.
+func fonts(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimPrefix(r.URL.Path, "/urlstat/dashboard/fonts/")
+	if strings.Contains(name, "/") || !strings.HasSuffix(name, ".woff2") {
+		http.NotFound(w, r)
+		return
+	}
+	b, err := fs.ReadFile(publicFS, "fonts/"+name)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "font/woff2")
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Write(b)
 }

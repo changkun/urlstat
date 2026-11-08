@@ -16,53 +16,77 @@
 })();
 </script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2 14V9h3v5zM6.5 14V5h3v9zM11 14V2h3v12z' fill='%232a78d6'/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
 <style>
-/* changkun.de's ink palette: white and neutral grays, the ink itself as the
-   accent, and navy only for a link under the pointer. The two series colors
-   are the data's own, validated for both themes (lightness band, chroma,
-   colorblind separation, contrast). */
+/* Inter comes from this binary, as redir serves it, so the page asks no
+   one else for anything but the login. */
+@font-face { font-family: Inter; font-style: normal; font-weight: 400; font-display: swap; src: url(/urlstat/dashboard/fonts/inter-400-latin.woff2) format('woff2'); }
+@font-face { font-family: Inter; font-style: normal; font-weight: 500; font-display: swap; src: url(/urlstat/dashboard/fonts/inter-500-latin.woff2) format('woff2'); }
+@font-face { font-family: Inter; font-style: normal; font-weight: 600; font-display: swap; src: url(/urlstat/dashboard/fonts/inter-600-latin.woff2) format('woff2'); }
+
+/* changkun.de's ink palette, with redir's console's values to the last
+   digit: white and neutral grays, the ink itself as the accent, and navy
+   only for a link under the pointer. The two series colors are the data's
+   own, validated for both themes (lightness band, chroma, colorblind
+   separation, contrast); visits are blue and visitors orange, as in redir.
+
+   The theme is the reader's choice when they made one, here or on another
+   page of the site, and the system's otherwise: the script above sets it
+   on the root before anything paints, and the media query covers a page
+   without script. */
 :root {
   --page: #ffffff; --surface: #ffffff; --ink: #0d0d0d; --ink-2: #525252; --muted: #666666;
-  --grid: #ebebeb; --axis: #d4d4d4; --border: rgba(0, 0, 0, 0.1); --border-strong: rgba(0, 0, 0, 0.14); --wash: rgba(0, 0, 0, 0.04);
-  --navy: #38538f;
+  --grid: #ebebeb; --axis: #d4d4d4; --border: rgba(0, 0, 0, 0.08); --border-strong: rgba(0, 0, 0, 0.14);
+  --wash: #f4f4f4; --navy: #38538f;
   --pv: #2a78d6; --uv: #eb6834; --up: #006300; --down: #b3261e; --danger: #b3261e;
+  --sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  color-scheme: light;
 }
-[data-theme="dark"] {
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #161616; --surface: #161616; --ink: #ececec; --ink-2: #b4b4b4; --muted: #9a9a9a;
+    --grid: #262626; --axis: #3a3a3a; --border: rgba(255, 255, 255, 0.08); --border-strong: rgba(255, 255, 255, 0.14);
+    --wash: #262626; --navy: #9bb0e4;
+    --pv: #3987e5; --uv: #d95926; --up: #0ca30c; --down: #e66767;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
   --page: #161616; --surface: #161616; --ink: #ececec; --ink-2: #b4b4b4; --muted: #9a9a9a;
-  --grid: #262626; --axis: #3a3a3a; --border: rgba(255, 255, 255, 0.1); --border-strong: rgba(255, 255, 255, 0.14); --wash: rgba(255, 255, 255, 0.06);
-  --navy: #9bb0e4;
+  --grid: #262626; --axis: #3a3a3a; --border: rgba(255, 255, 255, 0.08); --border-strong: rgba(255, 255, 255, 0.14);
+  --wash: #262626; --navy: #9bb0e4;
   --pv: #3987e5; --uv: #d95926; --up: #0ca30c; --down: #e66767;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; background: var(--page); color: var(--ink); font: 13px/1.45 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; -webkit-font-smoothing: antialiased; transition: background-color 0.3s, color 0.3s; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 13px/1.45 var(--sans); -webkit-font-smoothing: antialiased; transition: background-color 0.3s, color 0.3s; }
 ::selection { background: #555; color: #fff; }
 a { color: inherit; }
 button, select, input { font: inherit; color: inherit; }
-main { max-width: 1160px; margin: 0 auto; padding: 16px 16px 28px; }
+main { max-width: 1160px; margin: 0 auto; padding: 20px 16px 28px; }
 [hidden] { display: none !important; }
 
-/* The theme button where the home page has it. */
-.theme-toggle { position: absolute; top: 16px; right: 16px; z-index: 20; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--page); color: var(--ink-2); cursor: pointer; transition: color 0.2s, background-color 0.2s; }
+/* The blog's header, as redir's console has it: the name and the site on
+   the left, plain links and the theme button on the right, 16px from the
+   top and right as the home page puts its button. Signing in and out are
+   links here too, and so is the way to the sources. */
+.site-header { background: var(--page); border-bottom: 1px solid var(--border); font-size: 15px; }
+.header-inner { display: flex; align-items: center; gap: 20px; padding: 16px 16px 16px clamp(16px, 2vw, 24px); }
+.brand { display: flex; align-items: baseline; gap: 8px; min-width: 0; margin: 0 auto 0 0; font-weight: 600; white-space: nowrap; }
+.brand a { text-decoration: none; }
+.brand .sep, .brand .where { color: var(--ink-2); font-weight: 400; }
+.brand .where { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.brand .sep:has(+ .where:empty) { display: none; }
+.site-nav, #who { display: flex; align-items: center; gap: 20px; min-width: 0; }
+.site-nav a, .site-nav button { flex: none; padding: 0; border: 0; background: none; color: var(--ink-2); text-decoration: none; white-space: nowrap; cursor: pointer; }
+.site-nav a:hover, .site-nav button:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+#who .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px; color: var(--muted); }
+.theme-toggle { flex: none; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 1px solid var(--border-strong); border-radius: 8px; background: none; color: var(--ink-2); cursor: pointer; transition: color 0.2s, background-color 0.2s; }
 .theme-toggle:hover { color: var(--ink); background: var(--wash); }
 .theme-toggle svg { width: 18px; height: 18px; }
-[data-theme="light"] .icon-sun, [data-theme="dark"] .icon-moon { display: none; }
-
-/* The title row is as tall as the theme button and centered on it. */
-.top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-height: 36px; margin-bottom: 10px; }
-.top h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
-.top p { margin: 0; color: var(--ink-2); }
-.top .who, #who { display: flex; align-items: center; gap: 10px; color: var(--ink-2); min-width: 0; }
-.top .who { margin-left: auto; }
-.top .who .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 44vw; }
-.top a { color: var(--ink-2); text-decoration: none; }
-.top a:hover { color: var(--navy); }
-/* Where the column reaches the theme button, the row stops short of it. */
-@media (max-width: 1288px) { .top { padding-right: 48px; } }
+.theme-toggle .icon-sun { display: none; }
+:root[data-theme="dark"] .theme-toggle .icon-moon { display: none; }
+:root[data-theme="dark"] .theme-toggle .icon-sun { display: block; }
 
 /* One filter row; everything below it shows the same slice. */
 .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 10px; }
@@ -202,7 +226,6 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
 @media (max-width: 820px) {
   .tiles { grid-template-columns: repeat(2, 1fr); }
   .cols { grid-template-columns: minmax(0, 1fr); }
-  .top p { display: none; }
   td.bar, th.bar { display: none; }
   .tile .note { white-space: normal; }
   #pages td:nth-last-child(4) { white-space: normal; overflow-wrap: anywhere; }
@@ -213,6 +236,11 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   #visitors td.num, #visitors th.num { width: 60px; }
   #visitor td.from, #visitor th.from { display: none; }
   #visitor td.when { width: 118px; }
+  #who .name { display: none; }
+}
+@media (max-width: 480px) {
+  .site-nav .wide { display: none; }
+  .header-inner, .site-nav, #who { gap: 14px; }
 }
 </style>
 </head>
@@ -221,14 +249,14 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   <symbol id="i-moon" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
   <symbol id="i-sun" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></g></symbol>
 </svg>
-<button class="theme-toggle" id="theme" type="button" aria-label="Toggle theme"><svg class="icon-moon" aria-hidden="true"><use href="#i-moon"/></svg><svg class="icon-sun" aria-hidden="true"><use href="#i-sun"/></svg></button>
+<header class="site-header">
+  <div class="header-inner">
+    <p class="brand"><a href="/urlstat/dashboard">urlstat</a><span class="sep">/</span><span class="where" id="where"></span></p>
+    <nav class="site-nav"><span id="who"></span><a class="wide" href="https://github.com/changkun/urlstat">GitHub</a></nav>
+    <button class="theme-toggle" id="theme" type="button" aria-label="Toggle theme"><svg class="icon-moon" aria-hidden="true"><use href="#i-moon"/></svg><svg class="icon-sun" aria-hidden="true"><use href="#i-sun"/></svg></button>
+  </div>
+</header>
 <main id="app" class="busy">
-  <header class="top">
-    <h1>urlstat</h1>
-    <p>Page views and visitors</p>
-    <div class="who"><span id="who"></span><a href="https://github.com/changkun/urlstat">GitHub</a></div>
-  </header>
-
   <div class="filters">
     <select id="host" aria-label="Host"></select>
     <div class="seg" id="days" role="group" aria-label="Period">
@@ -429,6 +457,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
     sel.replaceChildren(...data.hosts.map((h) => el('option', { value: h.hostname, text: h.hostname + (h.pv ? '  ·  ' + fmt.format(h.pv) : '  ·  no visits') })));
     if (!data.hosts.some((h) => h.hostname === state.host) && state.host) sel.prepend(el('option', { value: state.host, text: state.host }));
     sel.value = state.host;
+    $('where').textContent = state.host;
     for (const b of $('days').children) b.setAttribute('aria-pressed', String(!data.custom && +b.dataset.days === state.days));
 
     // A range chosen on the chart, and the way back out of it.
@@ -799,10 +828,10 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   }
   function renderWho() {
     if (!auth) { $('who').replaceChildren(); return; }
-    const out = el('button', { class: 'link', text: 'Sign out', onclick: () => { auth.logout(); checkSession(); } });
-    if (state.admin) $('who').replaceChildren(el('span', { class: 'name', text: state.who, title: state.who }), el('button', { class: 'btn', text: 'Sources…', onclick: openSources }), out);
+    const out = el('button', { type: 'button', text: 'Sign out', onclick: () => { auth.logout(); checkSession(); } });
+    if (state.admin) $('who').replaceChildren(el('span', { class: 'name', text: state.who, title: state.who }), el('button', { type: 'button', text: 'Sources', onclick: openSources }), out);
     else if (state.denied) $('who').replaceChildren(el('span', { class: 'name', text: 'Signed in, without the right to manage' }), out);
-    else $('who').replaceChildren(el('button', { class: 'link', text: 'Sign in', onclick: () => {
+    else $('who').replaceChildren(el('button', { type: 'button', text: 'Sign in', onclick: () => {
       // The login comes back to this page without its query; keep it.
       sessionStorage.setItem('urlstat-return', location.search);
       auth.login(location.href);
