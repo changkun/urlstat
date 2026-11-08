@@ -5,38 +5,64 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>urlstat</title>
+<script>
+// Before the styles, so a dark page never paints light first. The key is
+// the one changkun.de's other pages keep: 'light' or 'dark' when chosen.
+(function () {
+  var t = null;
+  try { t = localStorage.getItem('theme'); } catch (e) {}
+  if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2 14V9h3v5zM6.5 14V5h3v9zM11 14V2h3v12z' fill='%232a78d6'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
 <style>
-/* Colors by the job they do. The two series colors are validated for both
-   surfaces (lightness band, chroma, colorblind separation, contrast). */
+/* changkun.de's ink palette: white and neutral grays, the ink itself as the
+   accent, and navy only for a link under the pointer. The two series colors
+   are the data's own, validated for both themes (lightness band, chroma,
+   colorblind separation, contrast). */
 :root {
-  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
-  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11, 11, 11, 0.1); --wash: rgba(11, 11, 11, 0.045);
+  --page: #ffffff; --surface: #ffffff; --ink: #0d0d0d; --ink-2: #525252; --muted: #666666;
+  --grid: #ebebeb; --axis: #d4d4d4; --border: rgba(0, 0, 0, 0.1); --border-strong: rgba(0, 0, 0, 0.14); --wash: rgba(0, 0, 0, 0.04);
+  --navy: #38538f;
   --pv: #2a78d6; --uv: #eb6834; --up: #006300; --down: #b3261e; --danger: #b3261e;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
-    --grid: #2c2c2a; --axis: #383835; --border: rgba(255, 255, 255, 0.1); --wash: rgba(255, 255, 255, 0.06);
-    --pv: #3987e5; --uv: #d95926; --up: #0ca30c; --down: #e66767;
-  }
+[data-theme="dark"] {
+  --page: #161616; --surface: #161616; --ink: #ececec; --ink-2: #b4b4b4; --muted: #9a9a9a;
+  --grid: #262626; --axis: #3a3a3a; --border: rgba(255, 255, 255, 0.1); --border-strong: rgba(255, 255, 255, 0.14); --wash: rgba(255, 255, 255, 0.06);
+  --navy: #9bb0e4;
+  --pv: #3987e5; --uv: #d95926; --up: #0ca30c; --down: #e66767;
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; background: var(--page); color: var(--ink); font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 13px/1.45 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; -webkit-font-smoothing: antialiased; transition: background-color 0.3s, color 0.3s; }
+::selection { background: #555; color: #fff; }
 a { color: inherit; }
 button, select, input { font: inherit; color: inherit; }
-main { max-width: 1160px; margin: 0 auto; padding: 14px 16px 28px; }
+main { max-width: 1160px; margin: 0 auto; padding: 16px 16px 28px; }
 [hidden] { display: none !important; }
 
-.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; margin-bottom: 10px; }
-.top h1 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
+/* The theme button where the home page has it. */
+.theme-toggle { position: absolute; top: 16px; right: 16px; z-index: 20; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--page); color: var(--ink-2); cursor: pointer; transition: color 0.2s, background-color 0.2s; }
+.theme-toggle:hover { color: var(--ink); background: var(--wash); }
+.theme-toggle svg { width: 18px; height: 18px; }
+[data-theme="light"] .icon-sun, [data-theme="dark"] .icon-moon { display: none; }
+
+/* The title row is as tall as the theme button and centered on it. */
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-height: 36px; margin-bottom: 10px; }
+.top h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
 .top p { margin: 0; color: var(--ink-2); }
-.top .who, #who { display: flex; align-items: baseline; gap: 10px; color: var(--ink-2); min-width: 0; }
+.top .who, #who { display: flex; align-items: center; gap: 10px; color: var(--ink-2); min-width: 0; }
 .top .who { margin-left: auto; }
 .top .who .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 44vw; }
 .top a { color: var(--ink-2); text-decoration: none; }
-.top a:hover { color: var(--ink); text-decoration: underline; }
+.top a:hover { color: var(--navy); }
+/* Where the column reaches the theme button, the row stops short of it. */
+@media (max-width: 1288px) { .top { padding-right: 48px; } }
 
 /* One filter row; everything below it shows the same slice. */
 .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 10px; }
@@ -56,7 +82,7 @@ main { max-width: 1160px; margin: 0 auto; padding: 14px 16px 28px; }
 .crumbs .sep { color: var(--muted); }
 .status { margin-left: auto; color: var(--ink-2); }
 .status.error { color: var(--down); }
-:focus-visible { outline: 2px solid var(--pv); outline-offset: 1px; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
 .busy .live { opacity: 0.5; transition: opacity 0.15s; }
@@ -64,19 +90,19 @@ main { max-width: 1160px; margin: 0 auto; padding: 14px 16px 28px; }
 .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px; }
 .tile { padding: 10px 14px 11px; min-width: 0; }
 .tile .label { color: var(--ink-2); }
-.tile .value { font-size: 24px; font-weight: 650; line-height: 1.2; letter-spacing: -0.01em; margin-top: 1px; }
+.tile .value { font-size: 24px; font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; margin-top: 1px; }
 .tile .note { color: var(--ink-2); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tile .note .up { color: var(--up); font-weight: 600; }
 .tile .note .down { color: var(--down); font-weight: 600; }
 
 .head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 9px 14px 0; min-height: 34px; }
-.head h2 { margin: 0; font-size: 13px; font-weight: 650; }
+.head h2 { margin: 0; font-size: 13px; font-weight: 600; }
 .head .count { color: var(--ink-2); }
 .head .right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
 .legend { display: flex; gap: 12px; color: var(--ink-2); white-space: nowrap; }
 .legend i { display: inline-block; width: 14px; height: 2px; border-radius: 1px; vertical-align: middle; margin-right: 5px; }
 .link { border: 0; background: none; padding: 2px 0; cursor: pointer; white-space: nowrap; color: var(--ink-2); text-decoration: underline; text-underline-offset: 2px; }
-.link:hover { color: var(--ink); }
+.link:hover { color: var(--navy); }
 .hint { color: var(--muted); font-size: 12px; }
 
 .chart { margin-bottom: 10px; }
@@ -90,7 +116,7 @@ main { max-width: 1160px; margin: 0 auto; padding: 14px 16px 28px; }
 .tip .day { color: var(--ink-2); margin-bottom: 2px; }
 .tip .row { display: flex; align-items: center; gap: 6px; }
 .tip .row i { width: 12px; height: 2px; border-radius: 1px; }
-.tip .row b { font-weight: 650; min-width: 4ch; font-variant-numeric: tabular-nums; }
+.tip .row b { font-weight: 600; min-width: 4ch; font-variant-numeric: tabular-nums; }
 .tip .row span { color: var(--ink-2); }
 .empty { padding: 28px 14px; text-align: center; color: var(--ink-2); }
 
@@ -109,14 +135,14 @@ td.bar { width: 22%; }
 td.bar i { display: block; height: 6px; min-width: 2px; border-radius: 0 3px 3px 0; background: var(--pv); }
 th button { border: 0; background: none; padding: 0; cursor: pointer; color: inherit; font-weight: inherit; }
 th button:hover { color: var(--ink); }
-th[aria-sort="descending"] button { color: var(--ink); font-weight: 650; }
+th[aria-sort="descending"] button { color: var(--ink); font-weight: 600; }
 td a { text-decoration: none; }
-td a:hover { text-decoration: underline; }
+td a:hover { color: var(--navy); }
 td .name { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
 td .name > :first-child { flex: 0 1 auto; min-width: 3ch; overflow: hidden; text-overflow: ellipsis; }
 td .sub { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 12px; }
 .drill { border: 0; background: none; padding: 0; cursor: pointer; text-align: left; }
-.drill:hover { text-decoration: underline; }
+.drill:hover { color: var(--navy); }
 /* The section table is narrow; its counts say enough without bars. */
 #sections td.bar, #sections th.bar { display: none; }
 .more { padding: 8px 14px 10px; border-top: 1px solid var(--grid); color: var(--ink-2); }
@@ -131,7 +157,7 @@ tr.pick { cursor: pointer; }
 #visitors td.addr, #visitors th.addr { width: 26%; }
 #visitor { width: min(760px, calc(100vw - 32px)); padding: 0; }
 #visitor .facts { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 2px 0 10px; }
-#visitor .facts b { font-weight: 650; }
+#visitor .facts b { font-weight: 600; }
 #visitor .agents { margin: 0 0 10px; padding: 0; list-style: none; color: var(--ink-2); font-size: 12px; }
 #visitor .agents li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #visitor td.when { width: 150px; color: var(--ink-2); }
@@ -149,7 +175,7 @@ tr.pick { cursor: pointer; }
 .tools input { width: 62px; height: 26px; padding: 0 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
 dialog { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--ink); padding: 16px 18px; width: min(460px, calc(100vw - 32px)); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25); }
 dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
-dialog h3 { margin: 0 0 6px; font-size: 15px; font-weight: 650; }
+dialog h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
 dialog p { margin: 0; color: var(--ink-2); }
 #confirm ul { margin: 10px 0 0; padding: 0; list-style: none; max-height: 190px; overflow: auto; border-top: 1px solid var(--grid); }
 #confirm li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
@@ -162,7 +188,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
 .dlg-head { display: flex; align-items: center; gap: 10px; padding: 14px 18px 6px; }
 .dlg-head h3 { flex: 1; margin: 0; }
 .dlg-body { padding: 0 18px 16px; max-height: min(72vh, 680px); overflow: auto; }
-.src h4 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 16px 0 6px; font-size: 13px; font-weight: 650; }
+.src h4 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 16px 0 6px; font-size: 13px; font-weight: 600; }
 .src h4 .count { font-weight: 400; color: var(--ink-2); }
 .src .add { margin-left: auto; display: flex; gap: 6px; }
 .src .add input { height: 26px; width: 180px; max-width: 46vw; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--page); }
@@ -191,6 +217,11 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-moon" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></g></symbol>
+</svg>
+<button class="theme-toggle" id="theme" type="button" aria-label="Toggle theme"><svg class="icon-moon" aria-hidden="true"><use href="#i-moon"/></svg><svg class="icon-sun" aria-hidden="true"><use href="#i-sun"/></svg></button>
 <main id="app" class="busy">
   <header class="top">
     <h1>urlstat</h1>
@@ -299,6 +330,20 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   const PERIODS = { 7: '7 days', 30: '30 days', 90: '90 days', 365: 'year' };
   const DAY = /^\d{4}-\d\d-\d\d$/;
   const auth = window.latereAuth;
+
+  // Theme: the system's until the reader picks one, kept under the key
+  // changkun.de's other pages share.
+  const root = document.documentElement;
+  $('theme').addEventListener('click', () => {
+    const t = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', t);
+    try { localStorage.setItem('theme', t); } catch (e) { /* private mode */ }
+  });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    let t = null;
+    try { t = localStorage.getItem('theme'); } catch (err) { /* private mode */ }
+    if (t !== 'light' && t !== 'dark') root.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+  });
   const state = {
     host: '', days: 30, from: '', to: '', prefix: '', sort: 'pv', q: '', all: false, allSections: false, table: false,
     admin: false, who: '', denied: false, cleaning: false, selected: new Set(),
