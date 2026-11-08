@@ -41,7 +41,7 @@ dashboard is public: **[changkun.de/urlstat/dashboard](https://changkun.de/urlst
     <td width="50%"><img src=".github/readme/dashboard-dark.png" alt="The dashboard in its dark theme, over one year"><br><sub>Light or dark, after the system until you pick one. Hover or use the arrow keys to read a day.</sub></td>
   </tr>
   <tr>
-    <td><img src=".github/readme/came-from.png" alt="A list of where visits came from: linkedin.com, direct, google.com, github.com and others"><br><sub>Where visits came from, for the period and section in view.</sub></td>
+    <td><img src=".github/readme/came-from.png" alt="A list of where visits came from: direct, google.com, chatgpt.com, github.com and others"><br><sub>Where visits came from, for the period and section in view.</sub></td>
     <td><img src=".github/readme/used.png" alt="What visitors used, by device, with crawlers counted apart"><br><sub>What people used, and how much of the traffic was crawlers.</sub></td>
   </tr>
   <tr>
